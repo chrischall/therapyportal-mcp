@@ -1,8 +1,8 @@
 {
   "name": "therapyportal-mcp",
   "displayName": "TherapyPortal",
-  "version": "0.0.0",
-  "description": "Read a TherapyNotes client portal (TherapyPortal) \u2014 upcoming appointments, paperwork, practice forms, balances, receipts and secure messages, plus document and receipt downloads.",
+  "version": "0.1.0",
+  "description": "Read a TherapyNotes client portal (TherapyPortal) — upcoming appointments, paperwork, practice forms, balances, receipts and secure messages, plus document and receipt downloads.",
   "author": {
     "name": "Chris Hall",
     "email": "chris.c.hall@gmail.com"

@@ -3,8 +3,8 @@
   "manifest_version": "0.3",
   "name": "therapyportal-mcp",
   "display_name": "TherapyPortal",
-  "version": "0.0.0",
-  "description": "Read a TherapyNotes client portal (TherapyPortal) \u2014 upcoming appointments, paperwork, practice forms, balances, receipts and secure messages, and download completed documents and receipts \u2014 by signing in server-side with your portal password, or by relaying through your signed-in browser tab.",
+  "version": "0.1.0",
+  "description": "Read a TherapyNotes client portal (TherapyPortal) — upcoming appointments, paperwork, practice forms, balances, receipts and secure messages, and download completed documents and receipts — by signing in server-side with your portal password, or by relaying through your signed-in browser tab.",
   "author": {
     "name": "Chris Chall",
     "email": "chris.c.hall@gmail.com",
