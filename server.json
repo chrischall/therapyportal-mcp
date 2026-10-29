@@ -1,7 +1,7 @@
 {
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.chrischall/therapyportal-mcp",
-  "description": "Read a TherapyNotes client portal: appointments, documents, billing and messages",
+  "description": "TherapyNotes client portal: appointments, documents, billing, messages; confirm-gated sends, uploads",
   "repository": {
     "url": "https://github.com/chrischall/therapyportal-mcp",
     "source": "github"
@@ -69,6 +69,18 @@
         {
           "name": "THERAPYPORTAL_UPLOAD_DIR",
           "description": "Folders an upload's file_path must be inside (a path-delimiter list; ~ expands). Default ~/Downloads, ~/Documents and ~/Desktop; $MCP_DATA_DIR/uploads when hosted.",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "MCP_CONFIRM_MODE",
+          "description": "Confirm-gate mode for every write (secure messages, document uploads). ask-user (default) returns a preview + confirmToken and needs a second call with that token; auto lets a capable host confirm in one step; an unrecognised value fails closed (refuse).",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "MCP_CONFIRM_ELICITATION",
+          "description": "on (default) lets the host confirm a write interactively; off forces the confirmToken round-trip.",
           "isRequired": false,
           "format": "string"
         },

@@ -6,7 +6,7 @@
     "email": "chris.c.hall@gmail.com"
   },
   "metadata": {
-    "description": "MCP server for TherapyNotes client portals (TherapyPortal) — read appointments, paperwork, forms, balances, receipts and secure messages, and download completed documents and receipts. Signs in server-side with the portal password, or relays requests through the user's signed-in browser tab via the ContextMint Bridge extension.",
+    "description": "MCP server for TherapyNotes client portals (TherapyPortal) — read appointments, paperwork, forms, balances, receipts and secure messages, download completed documents and receipts, and send secure messages and document uploads behind a confirm gate. Signs in server-side with the portal password, or relays requests through the user's signed-in browser tab via the ContextMint Bridge extension.",
     "version": "0.1.0"
   },
   "plugins": [
@@ -14,7 +14,7 @@
       "name": "therapyportal-mcp",
       "displayName": "TherapyPortal",
       "source": "./",
-      "description": "Read a TherapyNotes client portal (TherapyPortal) — upcoming appointments, paperwork, practice forms, balances, receipts and secure messages, plus document and receipt downloads. Signs in server-side or relays through the user's signed-in browser tab.",
+      "description": "Use a TherapyNotes client portal (TherapyPortal) — upcoming appointments, paperwork, practice forms, balances, receipts and secure messages, document and receipt downloads, plus confirm-gated secure messages and document uploads. Signs in server-side or relays through the user's signed-in browser tab.",
       "version": "0.1.0",
       "author": {
         "name": "Chris Hall"
