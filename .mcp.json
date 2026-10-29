@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "therapyportal": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@chrischall/therapyportal-mcp"
+      ],
+      "env": {
+        "THERAPYPORTAL_WS_PORT": "37149"
+      }
+    }
+  }
+}

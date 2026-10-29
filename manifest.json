@@ -1,0 +1,174 @@
+{
+  "$schema": "https://raw.githubusercontent.com/anthropics/dxt/main/dist/mcpb-manifest.schema.json",
+  "manifest_version": "0.3",
+  "name": "therapyportal-mcp",
+  "display_name": "TherapyPortal",
+  "version": "0.0.0",
+  "description": "Read a TherapyNotes client portal (TherapyPortal) \u2014 upcoming appointments, paperwork, practice forms, balances, receipts and secure messages, and download completed documents and receipts \u2014 by signing in server-side with your portal password, or by relaying through your signed-in browser tab.",
+  "author": {
+    "name": "Chris Chall",
+    "email": "chris.c.hall@gmail.com",
+    "url": "https://github.com/chrischall"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/chrischall/therapyportal-mcp"
+  },
+  "homepage": "https://github.com/chrischall/therapyportal-mcp",
+  "support": "https://github.com/chrischall/therapyportal-mcp/issues",
+  "license": "MIT",
+  "keywords": [
+    "therapyportal",
+    "therapynotes",
+    "patient-portal",
+    "behavioral-health",
+    "therapy",
+    "fetchproxy"
+  ],
+  "server": {
+    "type": "node",
+    "entry_point": "dist/bundle.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [
+        "${__dirname}/dist/bundle.js"
+      ],
+      "env": {
+        "THERAPYPORTAL_PRACTICE": "${user_config.therapyportal_practice}",
+        "THERAPYPORTAL_EMAIL": "${user_config.therapyportal_email}",
+        "THERAPYPORTAL_PASSWORD": "${user_config.therapyportal_password}",
+        "THERAPYPORTAL_DOB": "${user_config.therapyportal_dob}",
+        "THERAPYPORTAL_TRANSPORT": "${user_config.therapyportal_transport}",
+        "THERAPYPORTAL_WS_PORT": "${user_config.therapyportal_ws_port}",
+        "THERAPYPORTAL_OUTPUT_DIR": "${user_config.therapyportal_output_dir}",
+        "THERAPYPORTAL_INLINE_DOWNLOADS": "${user_config.therapyportal_inline_downloads}",
+        "FETCHPROXY_WS_HOST": "${user_config.fetchproxy_ws_host}",
+        "FETCHPROXY_IDENTITY_DIR": "${user_config.fetchproxy_identity_dir}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "therapyportal_list_clients",
+      "description": "The clients (patients) linked to this portal login, with the PatientId the other tools take. Names and date of birth only."
+    },
+    {
+      "name": "therapyportal_list_appointments",
+      "description": "Upcoming therapy appointments: date and time, clinician, telehealth or in-person location, and which client. The portal lists future appointments only."
+    },
+    {
+      "name": "therapyportal_list_documents",
+      "description": "Paperwork the practice sent (pending, completed or all): each request and its documents, with status, dates and the ids therapyportal_download_document takes."
+    },
+    {
+      "name": "therapyportal_list_forms",
+      "description": "The practice's always-available forms and documents (to sign or upload as needed), per client."
+    },
+    {
+      "name": "therapyportal_get_document_counts",
+      "description": "Per client: how many portal documents are waiting to be completed or approved, by clinical, administrative and billing category."
+    },
+    {
+      "name": "therapyportal_list_balances",
+      "description": "The amount due to the practice for each client, and whether autopay is on."
+    },
+    {
+      "name": "therapyportal_list_receipts",
+      "description": "Payment receipts: date, amount, and the dates of service each payment covered. Returns the PaymentId therapyportal_download_receipt takes."
+    },
+    {
+      "name": "therapyportal_list_message_threads",
+      "description": "Secure-message conversations for one client. Listing does not mark anything read."
+    },
+    {
+      "name": "therapyportal_get_thread_messages",
+      "description": "The messages in one secure-message conversation. Does not mark the conversation read."
+    },
+    {
+      "name": "therapyportal_download_document",
+      "description": "Download a completed portal document as a file: a form the client filled in (rendered to PDF) or a file the practice uploaded. Saves to disk locally or returns the bytes inline when hosted."
+    },
+    {
+      "name": "therapyportal_download_receipt",
+      "description": "Download a payment receipt as a PDF, by PaymentId from therapyportal_list_receipts. Saves to disk locally or returns the bytes inline when hosted."
+    },
+    {
+      "name": "therapyportal_healthcheck",
+      "description": "Report portal connectivity from whichever transport is live: the server-side sign-in, or the browser bridge. Skipped when no credential resolves."
+    }
+  ],
+  "user_config": {
+    "therapyportal_practice": {
+      "type": "string",
+      "title": "Practice code",
+      "description": "Your practice's portal code: the part after /p/ in its TherapyPortal URL (www.therapyportal.com/p/<code>/).",
+      "required": true
+    },
+    "therapyportal_email": {
+      "type": "string",
+      "title": "Portal email",
+      "description": "The email you sign in to TherapyPortal with. Set with the password to sign in server-side; leave both empty to relay through your signed-in browser tab.",
+      "required": false
+    },
+    "therapyportal_password": {
+      "type": "string",
+      "title": "Portal password",
+      "description": "Your TherapyPortal password. A rejected sign-in is never retried automatically.",
+      "required": false,
+      "sensitive": true
+    },
+    "therapyportal_dob": {
+      "type": "string",
+      "title": "Date of birth (sign-in check)",
+      "description": "Only if the portal asks for a date of birth at sign-in: that date, as MM/DD/YYYY. Tried once; never retried, because the portal limits attempts.",
+      "required": false,
+      "sensitive": true
+    },
+    "therapyportal_transport": {
+      "type": "string",
+      "title": "Transport (advanced)",
+      "description": "server or fetchproxy. Default: server when email and password are both set, otherwise fetchproxy.",
+      "required": false
+    },
+    "therapyportal_ws_port": {
+      "type": "string",
+      "title": "fetchproxy port (advanced)",
+      "description": "fetchproxy concentrator port (fetchproxy transport only, default 37149). The whole fleet shares this one port; override only when hosting.",
+      "required": false
+    },
+    "therapyportal_output_dir": {
+      "type": "string",
+      "title": "Download directory (advanced)",
+      "description": "Where downloaded files are written on the server transport (a path-delimiter list; ~ expands). Default ~/Downloads and ~/Documents. A per-call dest must resolve inside one of these.",
+      "required": false
+    },
+    "therapyportal_inline_downloads": {
+      "type": "string",
+      "title": "Inline downloads (advanced)",
+      "description": "true returns downloaded bytes inline (base64) instead of writing to disk, for a hosted runner whose disk you cannot reach. Default false.",
+      "required": false
+    },
+    "fetchproxy_ws_host": {
+      "type": "string",
+      "title": "fetchproxy bind address (advanced)",
+      "description": "Bind interface for the fetchproxy concentrator, a literal IP only (default 127.0.0.1). Keep on loopback; it exists for hosted deployments that run each MCP in its own network namespace.",
+      "required": false
+    },
+    "fetchproxy_identity_dir": {
+      "type": "string",
+      "title": "fetchproxy identity directory (advanced)",
+      "description": "Absolute path where the fetchproxy long-term identity keypair is stored (default ~/.fetchproxy/identity/).",
+      "required": false
+    }
+  },
+  "compatibility": {
+    "platforms": [
+      "darwin",
+      "win32",
+      "linux"
+    ],
+    "runtimes": {
+      "node": ">=22.5.0"
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "therapyportal-mcp",
+  "owner": {
+    "name": "Chris Hall",
+    "email": "chris.c.hall@gmail.com"
+  },
+  "metadata": {
+    "description": "MCP server for TherapyNotes client portals (TherapyPortal) \u2014 read appointments, paperwork, forms, balances, receipts and secure messages, and download completed documents and receipts. Signs in server-side with the portal password, or relays requests through the user's signed-in browser tab via the ContextMint Bridge extension.",
+    "version": "0.0.0"
+  },
+  "plugins": [
+    {
+      "name": "therapyportal-mcp",
+      "displayName": "TherapyPortal",
+      "source": "./",
+      "description": "Read a TherapyNotes client portal (TherapyPortal) \u2014 upcoming appointments, paperwork, practice forms, balances, receipts and secure messages, plus document and receipt downloads. Signs in server-side or relays through the user's signed-in browser tab.",
+      "version": "0.0.0",
+      "author": {
+        "name": "Chris Hall"
+      },
+      "homepage": "https://github.com/chrischall/therapyportal-mcp",
+      "repository": "https://github.com/chrischall/therapyportal-mcp",
+      "license": "MIT",
+      "keywords": [
+        "therapyportal",
+        "therapynotes",
+        "patient-portal",
+        "behavioral-health",
+        "therapy",
+        "fetchproxy"
+      ],
+      "category": "productivity"
+    }
+  ]
+}

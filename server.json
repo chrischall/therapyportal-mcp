@@ -1,0 +1,84 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.chrischall/therapyportal-mcp",
+  "description": "Read a TherapyNotes client portal: appointments, documents, billing and messages",
+  "repository": {
+    "url": "https://github.com/chrischall/therapyportal-mcp",
+    "source": "github"
+  },
+  "version": "0.0.0",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@chrischall/therapyportal-mcp",
+      "version": "0.0.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "THERAPYPORTAL_PRACTICE",
+          "description": "Your practice's portal code: the part after /p/ in its TherapyPortal URL (www.therapyportal.com/p/<code>/).",
+          "isRequired": true,
+          "format": "string"
+        },
+        {
+          "name": "THERAPYPORTAL_EMAIL",
+          "description": "The email you sign in to TherapyPortal with. Set with the password to sign in server-side; leave both empty to relay through your signed-in browser tab.",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "THERAPYPORTAL_PASSWORD",
+          "description": "Your TherapyPortal password. A rejected sign-in is never retried automatically.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": true
+        },
+        {
+          "name": "THERAPYPORTAL_DOB",
+          "description": "Only if the portal asks for a date of birth at sign-in: that date, as MM/DD/YYYY. Tried once; never retried, because the portal limits attempts.",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": true
+        },
+        {
+          "name": "THERAPYPORTAL_TRANSPORT",
+          "description": "server or fetchproxy. Default: server when email and password are both set, otherwise fetchproxy.",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "THERAPYPORTAL_WS_PORT",
+          "description": "fetchproxy concentrator port (fetchproxy transport only, default 37149). The whole fleet shares this one port; override only when hosting.",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "THERAPYPORTAL_OUTPUT_DIR",
+          "description": "Where downloaded files are written on the server transport (a path-delimiter list; ~ expands). Default ~/Downloads and ~/Documents. A per-call dest must resolve inside one of these.",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "THERAPYPORTAL_INLINE_DOWNLOADS",
+          "description": "true returns downloaded bytes inline (base64) instead of writing to disk, for a hosted runner whose disk you cannot reach. Default false.",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "FETCHPROXY_WS_HOST",
+          "description": "Bind interface for the fetchproxy concentrator, a literal IP only (default 127.0.0.1). Keep on loopback; it exists for hosted deployments that run each MCP in its own network namespace.",
+          "isRequired": false,
+          "format": "string"
+        },
+        {
+          "name": "FETCHPROXY_IDENTITY_DIR",
+          "description": "Absolute path where the fetchproxy long-term identity keypair is stored (default ~/.fetchproxy/identity/).",
+          "isRequired": false,
+          "format": "string"
+        }
+      ]
+    }
+  ]
+}

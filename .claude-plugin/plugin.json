@@ -1,0 +1,23 @@
+{
+  "name": "therapyportal-mcp",
+  "displayName": "TherapyPortal",
+  "version": "0.0.0",
+  "description": "Read a TherapyNotes client portal (TherapyPortal) \u2014 upcoming appointments, paperwork, practice forms, balances, receipts and secure messages, plus document and receipt downloads.",
+  "author": {
+    "name": "Chris Hall",
+    "email": "chris.c.hall@gmail.com"
+  },
+  "homepage": "https://github.com/chrischall/therapyportal-mcp",
+  "repository": "https://github.com/chrischall/therapyportal-mcp",
+  "license": "MIT",
+  "keywords": [
+    "therapyportal",
+    "therapynotes",
+    "patient-portal",
+    "behavioral-health",
+    "therapy",
+    "mcp"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json"
+}

@@ -1,0 +1,64 @@
+{
+  "name": "@chrischall/therapyportal-mcp",
+  "version": "0.0.0",
+  "description": "MCP server for TherapyNotes client portals (TherapyPortal): upcoming appointments, paperwork, practice forms, balances, receipts and secure messages, plus document and receipt downloads.",
+  "type": "module",
+  "bin": {
+    "therapyportal-mcp": "dist/bundle.js"
+  },
+  "mcpName": "io.github.chrischall/therapyportal-mcp",
+  "files": [
+    "dist",
+    ".claude-plugin",
+    ".mcp.json",
+    "server.json",
+    "skills",
+    "mint.yaml"
+  ],
+  "scripts": {
+    "build": "tsc --noEmit && npm run bundle",
+    "bundle": "esbuild src/index.ts --bundle --alias:zod/v4=./node_modules/zod/v4/index.cjs --define:process.env.FETCHPROXY_WS_PORT=undefined --define:process.env.WS_NO_BUFFER_UTIL='\"1\"' --define:process.env.WS_NO_UTF_8_VALIDATE='\"1\"' --platform=node --format=esm --banner:js='import { createRequire as __createRequire } from \"module\"; const require = __createRequire(import.meta.url);' --outfile=dist/bundle.js",
+    "dev": "node dist/bundle.js",
+    "test": "npm run typecheck && vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "npm run typecheck && vitest run --coverage",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "keywords": [
+    "mcp",
+    "therapyportal",
+    "therapynotes",
+    "patient-portal",
+    "behavioral-health",
+    "therapy"
+  ],
+  "author": "chrischall",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chrischall/therapyportal-mcp.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@chrischall/mcp-utils": "^3.4.0",
+    "@fetchproxy/server": "^3.6.0",
+    "@modelcontextprotocol/server": "^2.4.0",
+    "dotenv": "^18.0.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/client": "^2.4.0",
+    "@types/node": "^26.0.0",
+    "@vitest/coverage-v8": "^5.0.0",
+    "esbuild": "^0.28.1",
+    "tsx": "^4.19.0",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.0"
+  },
+  "allowScripts": {
+    "esbuild": false,
+    "fsevents": false
+  }
+}

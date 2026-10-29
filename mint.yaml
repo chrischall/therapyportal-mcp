@@ -1,0 +1,122 @@
+version: 1
+name: TherapyPortal
+slug: therapyportal
+summary: >-
+  Read your TherapyNotes client portal (TherapyPortal): upcoming therapy
+  appointments, paperwork, practice forms, balances, receipts and secure
+  messages, and download completed documents and receipts.
+
+# Sample prompts for the public catalog.
+examples:
+  - prompt: When is my kid's next therapy appointment, and is it telehealth?
+    note: Lists upcoming sessions with clinician, time and location.
+  - prompt: Does the therapist have any forms waiting for me to fill out?
+    note: Lists pending paperwork and per-client counts.
+  - prompt: Download the receipt for last month's session for my HSA claim.
+    note: Lists payments, then saves the receipt PDF.
+
+# This server has TWO transports, and the hosted one is the bridge-less path:
+# with THERAPYPORTAL_EMAIL/THERAPYPORTAL_PASSWORD set it signs in server-side
+# with its own cookie jar, so no browser, extension or bridge is involved and
+# this registers like any other credential MCP. The password login and the
+# date-of-birth check are live-verified; a rejected sign-in is never retried.
+#
+# Without those credentials it falls back to the fetchproxy browser bridge,
+# which relays through the user's signed-in tab. Hosting THAT would additionally
+# need `bridge: true` + `bridgePortEnv: THERAPYPORTAL_WS_PORT` on the
+# registration — set over the control API, since this manifest has no column
+# for them. Prefer the credential path.
+#
+# Read-only: it lists and downloads, and sends no message, signs no form and
+# makes no payment. These are mental-health records, often a minor's, so the
+# client-list tool returns names and date of birth only — never the contact
+# details, identifiers or notes the portal record carries.
+
+env:
+  # THERAPYPORTAL_EMAIL / THERAPYPORTAL_PASSWORD / THERAPYPORTAL_DOB are
+  # deliberately NOT here: they are collected from each connector user at
+  # connect time (see `auth.fields` below), and an auth field may not name a
+  # host-set variable. Set them in .env only for a local, single-user install.
+  - name: THERAPYPORTAL_PRACTICE
+    required: true
+    help: >-
+      Your practice's portal code: the part after /p/ in its TherapyPortal URL
+      (www.therapyportal.com/p/<code>/). A full portal URL is accepted too.
+  - name: THERAPYPORTAL_TRANSPORT
+    required: false
+    help: >-
+      server or fetchproxy. Default: server when email and password are both
+      set, otherwise fetchproxy (relays through your signed-in portal tab).
+  - name: THERAPYPORTAL_WS_PORT
+    required: false
+    help: >-
+      fetchproxy WebSocket concentrator port (default 37149). Only meaningful
+      for the browser-bridge fallback; ignored on the credential path. A bridged
+      registration also needs `bridge: true` + `bridgePortEnv:
+      THERAPYPORTAL_WS_PORT`.
+  - name: THERAPYPORTAL_OUTPUT_DIR
+    required: false
+    help: >-
+      Where downloaded files are written on the server transport (a
+      path-delimiter list; ~ expands). Default ~/Downloads and ~/Documents. A
+      per-call dest must resolve inside one of these. Ignored when
+      THERAPYPORTAL_INLINE_DOWNLOADS is set.
+  - name: THERAPYPORTAL_INLINE_DOWNLOADS
+    required: false
+    help: >-
+      true returns downloaded bytes inline (base64) instead of writing to disk —
+      the right choice on a hosted runner whose disk the user cannot reach.
+      Default false (disk).
+
+identity:
+  # One child per caller. Required for `auth` below, and right on its own
+  # merits: these are health records, so two people sharing one child would
+  # share one signed-in session.
+  perUserChild: true
+
+auth:
+  # Collected once, on the connector's authorize page, before any tool runs.
+  # There is no `flow`: the date-of-birth check is answered from a field the
+  # user fills in up front, not a challenge the portal sends, so no step needs a
+  # human mid-sign-in. No `capture` either — the child signs in on first use and
+  # holds its cookie jar in memory for the life of the process.
+  fields:
+    - name: THERAPYPORTAL_EMAIL
+      label: Portal email
+      type: text
+      required: true
+      help: The email address you sign in to TherapyPortal with.
+    - name: THERAPYPORTAL_PASSWORD
+      label: Portal password
+      type: password
+      required: true
+      help: >-
+        Your TherapyPortal password. Stored as a per-user secret and never shown
+        again. A rejected sign-in is never retried automatically.
+    - name: THERAPYPORTAL_DOB
+      label: Date of birth (if the portal asks)
+      type: password
+      required: false
+      help: >-
+        Only if TherapyPortal asks for a date of birth when you sign in: that
+        date, as MM/DD/YYYY. Tried once and never retried — the portal locks the
+        check after a few wrong dates.
+
+state:
+  dataDir: true
+  reason: >-
+    Only the fetchproxy BRIDGE fallback needs it: @fetchproxy/server stores its
+    long-term identity keypair under the data directory (default
+    $HOME/.fetchproxy, overridable with FETCHPROXY_IDENTITY_DIR). Without
+    persistence the bridge re-mints that identity on every cold start, so the
+    pairing with the user's browser extension is lost and they must approve a
+    new pair code each time. The default credential path holds its session
+    cookie jar in memory; on a local install it writes downloaded files to
+    THERAPYPORTAL_OUTPUT_DIR, and nothing else.
+
+egress:
+  # Every request — sign-in, data calls and file downloads — goes to this one
+  # host; practices live under its /p/<code>/ path, so it does not vary by
+  # practice. Nothing redirects off it (redirects are not followed).
+  allow:
+    - www.therapyportal.com
