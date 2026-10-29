@@ -14,6 +14,16 @@
 //   4. GET  /p/<code>/  → the signed-in page, whose TNRAC/siteVersion/PracticeID
 //      every later data call carries.
 //
+// Reads go through the session manager's `withSession`: when a response looks
+// signed out (`isSignedOut` — a 401, a redirect to /login, a Log In page) it
+// signs in again and REPLAYS the request once. Writes (`send`, `uploadSegment`)
+// deliberately do not: they take `ensure()` (sign in only if there is no
+// session yet), post once, and on a signed-out answer drop the session and hand
+// that answer back, so the write fails as "not sent" and the NEXT call signs in.
+// A signed-out answer means the portal refused the request before acting, so a
+// replay would most likely not have duplicated it — but a confirmed write is
+// still never re-sent behind the user's back.
+//
 // A rejected sign-in is NEVER retried: it is a PermanentTransportError, which
 // the session manager caches. The password and DOB are registered with the
 // scrubber in the constructor, so even a half-finished sign-in cannot leak them.
@@ -31,6 +41,7 @@ import { SecretScrubber } from './secrets.js';
 import {
   PORTAL_ORIGIN,
   PermanentTransportError,
+  SEGMENT_UPLOAD_PATH,
   callBody,
   callPath,
   isSignedOut,
@@ -132,6 +143,27 @@ export class ServerTransport implements TherapyPortalTransport {
     return this.sessions.withSession((s) =>
       this.post(s.jar, callPath(path), callBody(fields, s.tokens)),
     );
+  }
+
+  async send(path: string, fields: Record<string, string>): Promise<FetchResult> {
+    const s = await this.sessions.ensure();
+    const res = await this.post(s.jar, callPath(path), callBody(fields, s.tokens));
+    if (isSignedOut(res)) this.sessions.invalidate();
+    return res;
+  }
+
+  async uploadSegment(headers: Record<string, string>, body: string): Promise<FetchResult> {
+    const s = await this.sessions.ensure();
+    const res = await this.raw(
+      s.jar,
+      'POST',
+      `${PORTAL_ORIGIN}${SEGMENT_UPLOAD_PATH}`,
+      { 'Content-Type': 'text/plain;charset=UTF-8', ...headers },
+      body,
+    );
+    const out = { status: res.status, body: await res.text(), url: res.headers.get('location') ?? undefined };
+    if (isSignedOut(out)) this.sessions.invalidate();
+    return out;
   }
 
   async download(path: string): Promise<DownloadedFile> {

@@ -4,7 +4,7 @@
   "name": "therapyportal-mcp",
   "display_name": "TherapyPortal",
   "version": "0.1.0",
-  "description": "Read a TherapyNotes client portal (TherapyPortal) — upcoming appointments, paperwork, practice forms, balances, receipts and secure messages, and download completed documents and receipts — by signing in server-side with your portal password, or by relaying through your signed-in browser tab.",
+  "description": "Use a TherapyNotes client portal (TherapyPortal) — upcoming appointments, paperwork, practice forms, balances, receipts and secure messages, document and receipt downloads, plus confirm-gated secure messages and document uploads — by signing in server-side with your portal password, or by relaying through your signed-in browser tab.",
   "author": {
     "name": "Chris Chall",
     "email": "chris.c.hall@gmail.com",
@@ -42,6 +42,9 @@
         "THERAPYPORTAL_WS_PORT": "${user_config.therapyportal_ws_port}",
         "THERAPYPORTAL_OUTPUT_DIR": "${user_config.therapyportal_output_dir}",
         "THERAPYPORTAL_INLINE_DOWNLOADS": "${user_config.therapyportal_inline_downloads}",
+        "THERAPYPORTAL_UPLOAD_DIR": "${user_config.therapyportal_upload_dir}",
+        "MCP_CONFIRM_MODE": "${user_config.mcp_confirm_mode}",
+        "MCP_CONFIRM_ELICITATION": "${user_config.mcp_confirm_elicitation}",
         "FETCHPROXY_WS_HOST": "${user_config.fetchproxy_ws_host}",
         "FETCHPROXY_IDENTITY_DIR": "${user_config.fetchproxy_identity_dir}"
       }
@@ -91,6 +94,22 @@
     {
       "name": "therapyportal_download_receipt",
       "description": "Download a payment receipt as a PDF, by PaymentId from therapyportal_list_receipts. Saves to disk locally or returns the bytes inline when hosted."
+    },
+    {
+      "name": "therapyportal_list_message_topics",
+      "description": "The secure-message topics one client can write to (the topic_id therapyportal_send_message takes, and whether each reaches clinical, billing or administrative staff), whether secure messaging is on, and whether the client has an assigned clinician. Changes nothing."
+    },
+    {
+      "name": "therapyportal_send_message",
+      "description": "Start a new secure-message conversation with the practice for one client, under a topic. The practice receives it and it cannot be unsent, so it is confirm-gated: the first call returns a preview and a confirmToken, and only a repeat call with that token sends."
+    },
+    {
+      "name": "therapyportal_reply_message",
+      "description": "Reply in an existing secure-message conversation. Confirm-gated (preview + confirmToken) and cannot be unsent; leaves the conversation's read state alone unless mark_thread_read is true."
+    },
+    {
+      "name": "therapyportal_upload_document",
+      "description": "Upload a local PDF, JPG, PNG, HEIC or DOCX (up to 25 MB) in answer to a pending document request or an upload-required always-available form. Confirm-gated (preview + confirmToken); the practice receives the file and it cannot be removed here. Refuses anything that needs a signature."
     },
     {
       "name": "therapyportal_healthcheck",
@@ -146,6 +165,24 @@
       "type": "string",
       "title": "Inline downloads (advanced)",
       "description": "true returns downloaded bytes inline (base64) instead of writing to disk, for a hosted runner whose disk you cannot reach. Default false.",
+      "required": false
+    },
+    "therapyportal_upload_dir": {
+      "type": "string",
+      "title": "Upload directory (advanced)",
+      "description": "Folders a file may be uploaded from (a path-delimiter list; ~ expands). Default ~/Downloads, ~/Documents and ~/Desktop; $MCP_DATA_DIR/uploads when hosted. An upload's file_path must resolve inside one of these.",
+      "required": false
+    },
+    "mcp_confirm_mode": {
+      "type": "string",
+      "title": "Confirm mode (advanced)",
+      "description": "Confirm-gate behaviour for every write (messages, uploads). ask-user (default) returns a preview + confirmToken and needs a second call with that token; auto lets a capable host confirm in one step; an unrecognised value fails closed (refuse).",
+      "required": false
+    },
+    "mcp_confirm_elicitation": {
+      "type": "string",
+      "title": "Confirm by prompt (advanced)",
+      "description": "on (default) lets the host confirm a write interactively; off forces the confirmToken round-trip.",
       "required": false
     },
     "fetchproxy_ws_host": {

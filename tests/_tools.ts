@@ -13,10 +13,16 @@ import { registerClientTools } from '../src/tools/clients.js';
 import { registerDocumentTools } from '../src/tools/documents.js';
 import { registerDownloadTools } from '../src/tools/downloads.js';
 import { registerMessageTools } from '../src/tools/messages.js';
+import { registerComposeTools } from '../src/tools/compose.js';
+import { registerUploadTools } from '../src/tools/uploads.js';
 
 export interface FakeCall {
   path: string;
   fields: Record<string, string>;
+  /** 'call' (read path), 'send' (write path) or 'segment' (byte upload). */
+  via?: 'call' | 'send' | 'segment';
+  headers?: Record<string, string>;
+  body?: string;
 }
 
 export class FakeTransport implements TherapyPortalTransport {
@@ -35,6 +41,16 @@ export class FakeTransport implements TherapyPortalTransport {
   }
   async call(path: string, fields: Record<string, string> = {}): Promise<FetchResult> {
     const call = { path, fields };
+    this.calls.push(call);
+    return this.responder(call);
+  }
+  async send(path: string, fields: Record<string, string>): Promise<FetchResult> {
+    const call: FakeCall = { path, fields, via: 'send' };
+    this.calls.push(call);
+    return this.responder(call);
+  }
+  async uploadSegment(headers: Record<string, string>, body: string): Promise<FetchResult> {
+    const call: FakeCall = { path: 'SEGMENT', fields: {}, via: 'segment', headers, body };
     this.calls.push(call);
     return this.responder(call);
   }
@@ -69,6 +85,47 @@ export function capture(
   return { handlers, transport, client };
 }
 
+/**
+ * A request context from a client WITHOUT MCP elicitation, so a confirm-gated
+ * write takes the two-phase preview → confirmToken path.
+ */
+export function writeCtx(): unknown {
+  return {
+    mcpReq: {
+      envelope: {
+        'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+        'io.modelcontextprotocol/clientCapabilities': { extensions: {} },
+      },
+      inputResponses: undefined,
+      requestState: () => undefined,
+    },
+  };
+}
+
+/**
+ * Drive a confirm-gated tool: `preview` is phase 1; `confirmed` previews, clears
+ * the recorded calls, then repeats the call with the issued token.
+ */
+export function gated(fn: Handler, transport: FakeTransport) {
+  const parse = (r: ToolResult) => JSON.parse(textOf(r)) as Record<string, unknown>;
+  return {
+    preview: async (args: Record<string, unknown>) => parse(await fn(args, writeCtx())),
+    raw: (args: Record<string, unknown>) => fn(args, writeCtx()),
+    confirmedRaw: async (args: Record<string, unknown>) => {
+      const preview = parse(await fn(args, writeCtx()));
+      if (typeof preview.confirmToken !== 'string') throw new Error(`no token: ${JSON.stringify(preview)}`);
+      transport.calls.length = 0;
+      return fn({ ...args, confirmToken: preview.confirmToken }, writeCtx());
+    },
+    confirmed: async (args: Record<string, unknown>) => {
+      const preview = parse(await fn(args, writeCtx()));
+      if (typeof preview.confirmToken !== 'string') throw new Error(`no token: ${JSON.stringify(preview)}`);
+      transport.calls.length = 0;
+      return parse(await fn({ ...args, confirmToken: preview.confirmToken }, writeCtx()));
+    },
+  };
+}
+
 /** The text of a tool result's first content block. */
 export function textOf(res: ToolResult): string {
   return res.content[0]!.text;
@@ -85,6 +142,8 @@ export const stubTransport: TherapyPortalTransport = {
   close: async () => {},
   status: () => ({}),
   call: async () => ({ status: 200, body: 'null' }),
+  send: async () => ({ status: 200, body: 'null' }),
+  uploadSegment: async () => ({ status: 200, body: '' }),
   download: async () => ({ kind: 'bytes', bytes: new Uint8Array() }),
 };
 
@@ -102,6 +161,8 @@ export function registerAll(server: never, client: TherapyPortalClient, io: Down
   registerBillingTools(server, client);
   registerMessageTools(server, client);
   registerDownloadTools(server, client, io);
+  registerComposeTools(server, client);
+  registerUploadTools(server, client, { allowedRoots: 'unconfined' });
 }
 
 /** The names every non-healthcheck module registers. */

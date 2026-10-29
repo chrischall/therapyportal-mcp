@@ -88,11 +88,106 @@ has no job: the document page links it directly, and
 `fpx download https://www.therapyportal.com/p/<code>/documents/files/download/<PortalDocumentId>/`
 returns the file (verified, a 134 KB PDF). Other types are unverified.
 
-## Writes (NOT wrapped by the helper)
+## Writes (wrapped by the server, confirm-gated) — UNVERIFIED on the wire
 
-These exist in the bundles and are listed so nobody re-derives them by accident:
-- messaging: `messages/createnewthread`, `respondtothread`, `markthreadasread`
-- documents: `document/save*form`, `submitalwaysavailable*`, `uploadportalresponse*`, `savecapturedsignatureforportaluser`
-- payments: `billing/payments/saveportalpayment`
+Derived 2026-10-29 from the portal's public JS (site version `2026.8.9.49928.241710`),
+modules under `/static/javascript/tsbin/`: `Projects/SecureMessages/Services/SecureMessagingDataService.js`,
+`Projects/SecureMessages/Views/Inbox/CreateMessageViewV2.js`, `.../ThreadViewV2.js`,
+`Services/Portal/DocumentsDataService.js`, `Controllers/Portal/DocumentViewController.js`,
+`Controllers/Portal/AlwaysAvailableDocumentViewController.js`, and
+`/static/javascript/common/files/xhrfileuploader.js`. **No write has been sent live**; the
+three lookups marked "verified live" were called live, read-only. The fpx helper wraps none
+of these.
 
-All of them change the client's record at the practice.
+Every write data call is the normal request shape above (four page fields appended). An
+object argument is ONE form field holding a JSON string; the field name and its case matter.
+The server posts each write exactly once (`transport.send`) and never replays it after a
+re-sign-in.
+
+### Enums
+
+- AudienceType: `0` Administrative, `1` Billing, `2` Clinical
+- AddresseeType: `0` Patient (the only one a portal user uses), `1` Internal
+- MessageType: `0` Message
+- PatientFileReferenceType: `0` None, `1` PortalDocument, `2` InsurancePolicy,
+  `3` FormUploadedInsurancePolicy, `4` LibraryDocument, `5` HipaaNppForm
+- FormAdviceType: `0` Information, `1` Confirmation, `2` Warning, `3` Error, `4` Highlight.
+  A FormAdvice is `{ Id, Type, Message, Fields: [] }`; the document write endpoints answer
+  `{ "FormAdvice": FormAdvice[] }`, and any Type `3` means rejected.
+
+### Lookups the writes read first
+
+| path | fields | answer |
+|---|---|---|
+| `messages/getsettings` | `forceFromService=false` | **verified live.** `{ PracticeSettings: { SecureMessagingEnabled, PortalMessage, ShowPortalAdminMessage, PortalAdminMessageEnglish, ShowPortalBillingMessage, PortalBillingMessageEnglish, … }, Topics }` |
+| `messages/gettopicsforaudiences` | `audiences=0,1,2&patientId=<id>&ignoreUserPermissions=` | **verified live.** `Topic[]` = `{ Id, PracticeId, Audience, Description, DateCreated, DateModified, Status, SortOrder }`. `Description` is practice-written |
+| `messages/checkifpatienthasassignedclinician` | `patientid=<id>` | **verified live.** A bare JSON boolean. False means a Clinical message may not reach a clinician |
+
+### New conversation: `messages/createnewthread`
+
+Field `ThreadRequest` = JSON:
+
+```
+{ InternalAddressees: [], MessagePreview: <plain text, first 500 chars>, MessageBody: <HTML>,
+  MessageBodyCount: <plain-text length>, AddresseeType: 0,
+  TopicId: <Topic.Id>, Audience: <Topic.Audience>, PatientId: <patientId>, Subject: <string> }
+```
+
+The UI requires a subject (pre-filled with the topic's `Description`), a topic, and a body
+of 1 to 5000 characters. The body HTML is the editor's: each line HTML-escaped in its own
+`<p>…</p>`, an empty line as `<p><br></p>`. Success answers the created thread as JSON;
+anything else is a failure. A practice may throttle: the UI's failure text is "You have
+sent too many messages to the practice since the practice responded".
+
+### Reply: `messages/respondtothread`
+
+Fields: `MessageRequest` = JSON `{ MessagePreview, MessageBody, MessageBodyCount, MessageType: 0, MarkThreadRead: <bool> }`,
+`ThreadId=<id>`, `PatientId=<id>`. The server sends `MarkThreadRead: false` unless told
+otherwise (the read tools never mark anything read). Success answers the created message as
+JSON. An archived thread cannot be replied to (the UI says to start a new conversation). The
+thread shape is still unseen, so the server checks no thread fields and surfaces the
+portal's failure.
+
+### Upload a file for a document
+
+Three steps; only the last reaches the practice.
+
+1. **Stage the bytes**: `POST https://www.therapyportal.com/app/common/files/FileSegmentReceiver.ashx`.
+   Not a data call: no form fields, no `tnrac`/`tnv`/`portalpractice`, cookies only. The
+   client makes a uuid4 `guid` per file and splits the bytes into 102 400-byte segments.
+   Segment `i` is sent with headers `X-Upload-Guid`, `X-Upload-Segment: <i>`,
+   `X-Upload-Segment-Size: 102400`, `X-Upload-Segment-Is-Final: <true iff last>`,
+   `X-Upload-File-Name: <encodeURIComponent(name)>`, `X-Upload-File-Size: <total>`,
+   `X-Upload-File-Mime-Type`, and a body that is the segment's base64 (text, no data-URL
+   prefix). The name has `|<>"` stripped first. Success is HTTP 200 with a body that does
+   not contain `Error` (an error body is `{ "Error": "<message>" }`). The portal retries a
+   non-200 segment up to 3 times and never an `Error` body; the server does the same, and
+   sends segments in order. The portal's own client refuses an empty file, an extension
+   longer than 16 characters, and Google Drive shortcuts (`.gdoc` etc.).
+2. **Validate**: `document/stageduploadvalidation`, field `request` = JSON
+   - pending request document: `{ FileUploadGuid, ReferenceId: <PortalDocumentId>, ReferenceType: 1 }`
+   - always-available library document: `{ FileUploadGuid, ReferenceId: <LibraryDocumentId>, ReferenceVersionId: <LibraryDocumentVersionId>, ReferenceType: 4 }`
+
+   Answers `{ FormAdvice }`; a Type 3 stops here (the staged temp file is orphaned).
+3. **Submit**. `SavePatientFileRequest` = `{ ReferenceId, ReferenceVersionId, ReferenceType, PatientId, FileSize, FileName, MimeType, DocumentDate: <ISO now>, Guid }`.
+   - pending request document (in `getportaluserdocumentrequestsbystatus`, `IsUploadRequired`
+     true, not completed): `document/uploadportalresponse`, field `request` = that object with
+     `ReferenceType: 1, ReferenceId: <PortalDocumentId>, ReferenceVersionId: null, PatientId: <the document's PatientId>`.
+   - always-available library document (an item of `getalwaysavailabledocumentsforportaluser`
+     with `PatientDocumentType` 2 and `IsUploadRequired` true; `LibraryDocumentId` is its
+     `PatientDocumentKey`, `LibraryDocumentVersionId` its `RevisionId`):
+     `document/submitalwaysavailablelibrarydocumentupload`, field `request` =
+     `{ PatientId, LibraryDocumentId, LibraryDocumentVersionId, UploadedResponse: <SavePatientFileRequest with ReferenceType: 1, ReferenceId: null, ReferenceVersionId: null> }`.
+     (The submit uses ReferenceType 1 where validation used 4. That is copied from the
+     portal's code.)
+
+   Answers `{ FormAdvice }`; Type 3 is a rejection, otherwise success.
+
+### Not wrapped, on purpose
+
+- anything needing a signature (`PatientSignatureRequired` true is refused):
+  `uploadportalresponseandsignature`, `submitalwaysavailableuploadsignaturerequireddocument`,
+  `savecapturedsignatureforportaluser`
+- form filling: `document/save*form`, `submitalwaysavailable*form`
+- `messages/markthreadasread` (a reply can mark read only through its own `MarkThreadRead`)
+- payments: `billing/payments/saveportalpayment` — never

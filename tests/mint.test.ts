@@ -69,6 +69,9 @@ describe('mint.yaml env block', () => {
       'THERAPYPORTAL_WS_PORT',
       'THERAPYPORTAL_OUTPUT_DIR',
       'THERAPYPORTAL_INLINE_DOWNLOADS',
+      'THERAPYPORTAL_UPLOAD_DIR',
+      'MCP_CONFIRM_MODE',
+      'MCP_CONFIRM_ELICITATION',
     ]) {
       expect(declared, `mint.yaml env declares ${name}`).toContain(name);
     }

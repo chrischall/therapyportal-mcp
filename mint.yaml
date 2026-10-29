@@ -2,9 +2,9 @@ version: 1
 name: TherapyPortal
 slug: therapyportal
 summary: >-
-  Read your TherapyNotes client portal (TherapyPortal): upcoming therapy
-  appointments, paperwork, practice forms, balances, receipts and secure
-  messages, and download completed documents and receipts.
+  Your TherapyNotes client portal (TherapyPortal): appointments, paperwork,
+  forms, balances, receipts and messages; downloads; confirm-gated secure
+  messages and document uploads.
 
 # Sample prompts for the public catalog.
 examples:
@@ -27,10 +27,14 @@ examples:
 # registration — set over the control API, since this manifest has no column
 # for them. Prefer the credential path.
 #
-# Read-only: it lists and downloads, and sends no message, signs no form and
-# makes no payment. These are mental-health records, often a minor's, so the
-# client-list tool returns names and date of birth only — never the contact
-# details, identifiers or notes the portal record carries.
+# NOT read-only: besides listing and downloading it sends secure messages (new
+# conversations and replies) and uploads a file in answer to a document that
+# asks for one. Every write is confirm-gated (preview + confirmToken) and the
+# sends are derived from the portal's JS, UNVERIFIED on the wire. It signs no
+# form, fills in no form and makes no payment. These are mental-health records,
+# often a minor's, so the client-list tool returns names and date of birth
+# only — never the contact details, identifiers or notes the portal record
+# carries.
 
 env:
   # THERAPYPORTAL_EMAIL / THERAPYPORTAL_PASSWORD / THERAPYPORTAL_DOB are
@@ -67,6 +71,25 @@ env:
       true returns downloaded bytes inline (base64) instead of writing to disk —
       the right choice on a hosted runner whose disk the user cannot reach.
       Default false (disk).
+  - name: THERAPYPORTAL_UPLOAD_DIR
+    required: false
+    help: >-
+      Folders therapyportal_upload_document may read a file from (a
+      path-delimiter list; ~ expands). Default ~/Downloads, ~/Documents and
+      ~/Desktop locally, or $MCP_DATA_DIR/uploads when hosted. An upload's
+      file_path must resolve inside one of these.
+  - name: MCP_CONFIRM_MODE
+    required: false
+    help: >-
+      Confirm-gate behaviour for every write (secure messages, document
+      uploads). ask-user (default) returns a preview + confirmToken and
+      requires a second call with that token; auto lets a capable host confirm
+      in one step; an unrecognised value fails closed (refuse).
+  - name: MCP_CONFIRM_ELICITATION
+    required: false
+    help: >-
+      on (default) lets the host confirm a write interactively (elicitation);
+      off forces the confirmToken round-trip.
 
 identity:
   # One child per caller. Required for `auth` below, and right on its own
@@ -112,10 +135,11 @@ state:
     pairing with the user's browser extension is lost and they must approve a
     new pair code each time. The default credential path holds its session
     cookie jar in memory; on a local install it writes downloaded files to
-    THERAPYPORTAL_OUTPUT_DIR, and nothing else.
+    THERAPYPORTAL_OUTPUT_DIR, and nothing else. When hosted, uploads are read
+    from $MCP_DATA_DIR/uploads (the one disk the user and the runner share).
 
 egress:
-  # Every request — sign-in, data calls and file downloads — goes to this one
+  # Every request — sign-in, data calls, file downloads and uploads — goes to this one
   # host; practices live under its /p/<code>/ path, so it does not vary by
   # practice. Nothing redirects off it (redirects are not followed).
   allow:

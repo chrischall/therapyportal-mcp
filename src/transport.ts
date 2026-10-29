@@ -15,6 +15,12 @@
 // (`GET /p/<code>/`) to read those values, then inject them into each call. A
 // transport owns that, plus cookies or the bridge and re-sign-in on expiry; it
 // returns a raw `{ status, body }` pair. Parsing and projection live in the client.
+//
+// Reads and writes take different paths. `call` is the READ path: a transport
+// may refresh its session or tokens and replay it once. `send` is the WRITE
+// path: posted exactly once, never replayed, so a confirmed write can never go
+// out twice. `uploadSegment` posts one chunk of a file to the portal's byte
+// receiver, which is not a data call (no page fields, cookies only).
 
 import { McpToolError } from '@chrischall/mcp-utils';
 
@@ -46,7 +52,27 @@ export interface TherapyPortalTransport {
    * it, e.g. `document/download/<id>/`).
    */
   download(path: string): Promise<DownloadedFile>;
+  /**
+   * POST one WRITE data call (same shape as {@link call}) exactly ONCE. A
+   * transport may read fresh page tokens first (a GET, which changes nothing),
+   * but it never replays the POST: on a signed-out answer it returns that
+   * answer, and the client reports that nothing was sent.
+   */
+  send(path: string, fields: Record<string, string>): Promise<FetchResult>;
+  /**
+   * POST one segment of a file to {@link SEGMENT_UPLOAD_PATH}: the `X-Upload-*`
+   * headers plus a base64 text body, with the session's cookies and nothing
+   * else (no page fields). Posted once; the client owns the per-segment retry.
+   */
+  uploadSegment(headers: Record<string, string>, body: string): Promise<FetchResult>;
 }
+
+/**
+ * The portal's byte receiver (`xhrfileuploader.js`): a file is staged here in
+ * segments before a document call references it by its upload guid. A fixed
+ * path on {@link PORTAL_ORIGIN}; never built from tool input.
+ */
+export const SEGMENT_UPLOAD_PATH = '/app/common/files/FileSegmentReceiver.ashx';
 
 /** The values a data call needs, read from the signed-in practice page. */
 export interface PageTokens {
