@@ -1,6 +1,6 @@
 {
   "name": "@chrischall/therapyportal-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "MCP server for TherapyNotes client portals (TherapyPortal): upcoming appointments, paperwork, practice forms, balances, receipts and secure messages, plus document and receipt downloads.",
   "type": "module",
   "bin": {
