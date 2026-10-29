@@ -3,7 +3,7 @@
   "manifest_version": "0.3",
   "name": "therapyportal-mcp",
   "display_name": "TherapyPortal",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Use a TherapyNotes client portal (TherapyPortal) — upcoming appointments, paperwork, practice forms, balances, receipts and secure messages, document and receipt downloads, plus confirm-gated secure messages and document uploads — by signing in server-side with your portal password, or by relaying through your signed-in browser tab.",
   "author": {
     "name": "Chris Chall",
