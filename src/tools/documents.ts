@@ -19,7 +19,8 @@ export function registerDocumentTools(server: McpServer, client: TherapyPortalCl
       description:
         'List paperwork the practice sent through TherapyPortal — intake and consent forms, ' +
         'questionnaires, files sent for review — with each request’s status, date and ' +
-        'instructions, and each document’s portal_document_id for therapyportal_download_document. ' +
+        'instructions, and each document’s portal_document_id for therapyportal_download_document ' +
+        '(or, when it asks for a file, therapyportal_upload_document). ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
       annotations: READ,
       inputSchema: z.object({
@@ -56,6 +57,8 @@ export function registerDocumentTools(server: McpServer, client: TherapyPortalCl
                   kind: DOCUMENT_KIND[String(d.PatientDocumentType)] ?? d.PatientDocumentType,
                   status: DOCUMENT_STATUS[String(d.PortalDocumentStatus)] ?? d.PortalDocumentStatus,
                   completed: d.PortalDocumentDateCompleted,
+                  uploadRequired: d.IsUploadRequired,
+                  signatureRequired: d.PatientSignatureRequired,
                 }),
               ),
             }),
@@ -71,7 +74,8 @@ export function registerDocumentTools(server: McpServer, client: TherapyPortalCl
       description:
         'List the practice’s always-available forms and documents in TherapyPortal — standing ' +
         'paperwork such as a disclosure statement to sign or a document to upload — and whether ' +
-        'each needs a signature or an upload. ' +
+        'each needs a signature or an upload, with the libraryDocumentId therapyportal_upload_document ' +
+        'takes. ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
       annotations: READ,
       inputSchema: z.object({ view: viewArg() }),
@@ -88,6 +92,7 @@ export function registerDocumentTools(server: McpServer, client: TherapyPortalCl
           if (!Array.isArray(data)) return undefined;
           return asRecordArray(data).map((f) =>
             tidy({
+              libraryDocumentId: f.PatientDocumentKey,
               title: f.Title,
               description: f.DocumentDescription,
               patientId: f.PatientId,

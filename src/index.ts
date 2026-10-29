@@ -8,8 +8,10 @@
 //   * otherwise            → the fetchproxy bridge, relaying through the user's
 //     signed-in portal tab. Holds no credentials at all.
 //
-// Read-only: lists and downloads; it sends no message, signs no form and makes
-// no payment.
+// NOT read-only: alongside the reads and downloads it sends secure messages
+// (new conversations and replies) and uploads a file in answer to a document
+// that asks for one — each confirm-gated. It signs no form, fills in no form
+// and makes no payment.
 
 import { loadDotenvSafely, readEnvVar, readPortEnv, requireEnvVar, runMcp } from '@chrischall/mcp-utils';
 import { TherapyPortalClient, type TransportMode } from './client.js';
@@ -22,6 +24,8 @@ import { registerDocumentTools } from './tools/documents.js';
 import { registerDownloadTools } from './tools/downloads.js';
 import { registerHealthcheckTool } from './tools/healthcheck.js';
 import { registerMessageTools } from './tools/messages.js';
+import { registerComposeTools } from './tools/compose.js';
+import { registerUploadTools, uploadRoots } from './tools/uploads.js';
 import { DEFAULT_PORT, FetchproxyTransport } from './transport-fetchproxy.js';
 import { ServerTransport } from './transport-server.js';
 import { parsePracticeCode, type TherapyPortalTransport } from './transport.js';
@@ -79,6 +83,8 @@ await runMcp({
     (server) => registerBillingTools(server, client),
     (server) => registerMessageTools(server, client),
     (server) => registerDownloadTools(server, client, downloadIO),
+    (server) => registerComposeTools(server, client),
+    (server) => registerUploadTools(server, client, { allowedRoots: uploadRoots() }),
     (server) => registerHealthcheckTool(server, client, hostLabel, { bridge, credentialsConfigured }),
   ],
 });

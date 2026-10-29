@@ -6,6 +6,10 @@
 // through that same tab, cached, and re-read once when a call is refused — the
 // portal can rotate TNRAC while the browser session itself stays alive.
 //
+// Writes (`send`) never take that re-read-and-retry: they re-read the page
+// FIRST (a GET, which changes nothing) so the TNRAC is current, then POST once.
+// A 401 on a write is handed back as-is and the client reports it as not sent.
+//
 // Downloads use the bridge's `download` verb: the browser fetches the file with
 // its own cookies and saves it to its download folder, and the tool reports
 // that path. (The bridge relays response bodies as text, so it cannot hand the
@@ -22,6 +26,7 @@ import {
 } from '@chrischall/mcp-utils/fetchproxy';
 import {
   PORTAL_ORIGIN,
+  SEGMENT_UPLOAD_PATH,
   callBody,
   callPath,
   parsePageTokens,
@@ -105,9 +110,30 @@ export class FetchproxyTransport implements TherapyPortalTransport {
     const res = await this.post(path, fields, tokens);
     if (res.status !== 401 || first) return res;
     // A cached TNRAC can go stale while the browser session lives on: re-read
-    // the page once and retry. Reads only, so the retry is safe.
+    // the page once and retry. `call` is the READ path, so the retry is safe;
+    // writes go through `send`, which never retries.
     const fresh = await this.boot(true);
     return fresh === undefined ? res : this.post(path, fields, fresh);
+  }
+
+  async send(path: string, fields: Record<string, string>): Promise<FetchResult> {
+    // Fresh tokens up front instead of a retry afterwards: the page GET is
+    // side-effect free, and the POST below goes out at most once.
+    const tokens = await this.boot(true);
+    if (tokens === undefined) return { status: 401, body: '' };
+    return this.post(path, fields, tokens);
+  }
+
+  async uploadSegment(headers: Record<string, string>, body: string): Promise<FetchResult> {
+    // The bridge is pinned to therapyportal.com (www); the path is the fixed
+    // receiver constant, never tool input. Sent once — the client retries.
+    const res = await this.inner.fetch({
+      method: 'POST',
+      path: SEGMENT_UPLOAD_PATH,
+      headers: { 'Content-Type': 'text/plain;charset=UTF-8', ...headers },
+      body,
+    });
+    return { status: res.status, body: res.body, url: res.url };
   }
 
   async download(path: string): Promise<DownloadedFile> {

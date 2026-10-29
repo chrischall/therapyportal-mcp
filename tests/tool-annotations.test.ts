@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { CONFIRM_INJECTION_RULE } from '@chrischall/mcp-utils';
 import { createTestHarness } from '@chrischall/mcp-utils/test';
 import { TherapyPortalClient } from '../src/client.js';
 import { registerHealthcheckTool } from '../src/tools/healthcheck.js';
@@ -33,15 +34,30 @@ describe('tool annotations', () => {
     for (const t of manifest.tools) expect(t.description.trim(), t.name).not.toBe('');
   });
 
-  it('marks every tool read-only, non-destructive and open-world', async () => {
-    // This server is read-only by design: there is no inverse to reason about
-    // because nothing writes. A future write must change this test on purpose.
+  // The confirm-gated writes. Everything else is a read.
+  const WRITES = ['therapyportal_send_message', 'therapyportal_reply_message', 'therapyportal_upload_document'];
+
+  it('marks every read read-only, non-destructive and open-world', async () => {
     for (const t of await servedTools()) {
+      if (WRITES.includes(t.name)) continue;
       expect(t.annotations?.readOnlyHint, t.name).toBe(true);
       // therapyportal_healthcheck is the fleet-standard tool from
       // @chrischall/mcp-utils, which sets readOnly but not destructiveHint.
       if (t.name !== 'therapyportal_healthcheck') expect(t.annotations?.destructiveHint, t.name).toBe(false);
       expect(t.annotations?.openWorldHint, t.name).toBe(true);
+    }
+  });
+
+  it('marks every write destructive and open-world, confirm-gated by token, with the injection rule', async () => {
+    const tools = await servedTools();
+    for (const name of WRITES) {
+      const t = tools.find((x) => x.name === name);
+      expect(t, name).toBeDefined();
+      expect(t!.annotations?.readOnlyHint, name).toBe(false);
+      expect(t!.annotations?.destructiveHint, name).toBe(true);
+      expect(t!.annotations?.openWorldHint, name).toBe(true);
+      expect(Object.keys(t!.inputSchema.properties ?? {}), name).toContain('confirmToken');
+      expect(t!.description, name).toContain(CONFIRM_INJECTION_RULE);
     }
   });
 

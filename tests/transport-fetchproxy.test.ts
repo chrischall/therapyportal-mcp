@@ -132,3 +132,45 @@ describe('FetchproxyTransport', () => {
     expect(f.inner.runProbe).toHaveBeenCalled();
   });
 });
+
+describe('FetchproxyTransport writes', () => {
+  it('send re-reads the page for fresh tokens, then posts ONCE — no retry on 401', async () => {
+    let page = 0;
+    const f = fakeInner((i) => {
+      if (i.method === 'GET') return { status: 200, body: signedInPage({ tnrac: `tok-${++page}` }) };
+      return { status: 401, body: '' };
+    });
+    const t = new FetchproxyTransport({ practice: 'example777', version: '1', createInner: f.createInner });
+    await t.call('warm').catch(() => {});
+    f.fetched.length = 0;
+    const res = await t.send('messages/createnewthread', { ThreadRequest: '{}' });
+    expect(res.status).toBe(401);
+    expect(f.fetched.map((i) => `${i.method} ${i.path}`)).toEqual([
+      'GET /p/example777/',
+      'POST /portal/practice/messages/createnewthread.aspx?msg=1',
+    ]);
+    expect(new URLSearchParams(f.fetched[1]!.body).get('tnrac')).toBe(`tok-${page}`);
+  });
+
+  it('send answers 401 without posting when the tab is not signed in', async () => {
+    const f = fakeInner(() => ({ status: 200, body: loginPage() }));
+    const t = new FetchproxyTransport({ practice: 'example777', version: '1', createInner: f.createInner });
+    expect((await t.send('messages/createnewthread', {})).status).toBe(401);
+    expect(f.fetched.every((i) => i.method === 'GET')).toBe(true);
+  });
+
+  it('uploadSegment posts once to the fixed receiver path with the headers and text body', async () => {
+    const f = fakeInner(() => ({ status: 200, body: '' }));
+    const t = new FetchproxyTransport({ practice: 'example777', version: '1', createInner: f.createInner });
+    const res = await t.uploadSegment({ 'X-Upload-Guid': 'g-1' }, 'QUJD');
+    expect(res).toEqual({ status: 200, body: '', url: undefined });
+    expect(f.fetched).toEqual([
+      {
+        method: 'POST',
+        path: '/app/common/files/FileSegmentReceiver.ashx',
+        headers: { 'Content-Type': 'text/plain;charset=UTF-8', 'X-Upload-Guid': 'g-1' },
+        body: 'QUJD',
+      },
+    ]);
+  });
+});

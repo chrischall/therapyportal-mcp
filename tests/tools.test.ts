@@ -33,7 +33,7 @@ const DOC_REQS = {
     {
       RequestId: 9, RequestStatus: 5, PatientId: 101, PatientFirstName: 'Robin', PatientNickName: '', RequestDateCreated: '2026-09-01T00:00:00', VersionInstructions: 'Please review',
       PortalDocuments: [
-        { PortalDocumentId: 501, Title: 'Intake', PatientDocumentType: 3, PortalDocumentStatus: 3, PortalDocumentDateCompleted: '2026-09-02', PatientId: 101 },
+        { PortalDocumentId: 501, Title: 'Intake', PatientDocumentType: 3, PortalDocumentStatus: 3, PortalDocumentDateCompleted: '2026-09-02', PatientId: 101, IsUploadRequired: false, PatientSignatureRequired: true },
         { PortalDocumentId: 502, Title: 'Plan.pdf', PatientDocumentType: 0, PortalDocumentStatus: 3, PatientId: 101 },
         { PortalDocumentId: 503, Title: 'Odd', PatientDocumentType: 7, PortalDocumentStatus: 9, PatientId: 101 },
       ],
@@ -94,7 +94,7 @@ describe('document tools', () => {
     route({
       'documents/api/getportaluserdocumentrequestsbystatus': DOC_REQS,
       'documents/api/getalwaysavailabledocumentsforportaluser': [
-        { Title: 'Disclosure', DocumentDescription: 'Read me', PatientId: 101, PatientSignatureRequired: true, IsUploadRequired: false, OriginalFileName: 'd.pdf', EncryptedId: 'secret-ish' },
+        { PatientDocumentKey: 701, Title: 'Disclosure', DocumentDescription: 'Read me', PatientId: 101, PatientSignatureRequired: true, IsUploadRequired: false, OriginalFileName: 'd.pdf', EncryptedId: 'secret-ish' },
       ],
       getportaldocumentstatisticsforportaluser: [
         { PatientId: 101, ClinicalPortalDocumentsPendingCompletion: 1, AdministrativePortalDocumentsPendingCompletion: 0, BillingPortalDocumentsPendingCompletion: 0, ClinicalPortalDocumentsPendingApproval: 0, AdministrativePortalDocumentsPendingApproval: 2, BillingPortalDocumentsPendingApproval: 0 },
@@ -108,7 +108,7 @@ describe('document tools', () => {
     const [first, second] = out.data as Array<Record<string, unknown>>;
     expect(first).toMatchObject({ requestId: 9, status: 'completed', client: 'Robin', instructions: 'Please review' });
     expect(first!.documents).toEqual([
-      { portalDocumentId: 501, title: 'Intake', kind: 'portal_form', status: 'completed', completed: '2026-09-02' },
+      { portalDocumentId: 501, title: 'Intake', kind: 'portal_form', status: 'completed', completed: '2026-09-02', uploadRequired: false, signatureRequired: true },
       { portalDocumentId: 502, title: 'Plan.pdf', kind: 'practice_file', status: 'completed' },
       { portalDocumentId: 503, title: 'Odd', kind: 7, status: 9 },
     ]);
@@ -125,7 +125,7 @@ describe('document tools', () => {
   it('lists always-available forms without encrypted ids', async () => {
     const text = textOf(await handlers.get('therapyportal_list_forms')!({}));
     expect((JSON.parse(text) as { data: unknown }).data).toEqual([
-      { title: 'Disclosure', description: 'Read me', patientId: 101, signatureRequired: true, uploadRequired: false, fileName: 'd.pdf' },
+      { libraryDocumentId: 701, title: 'Disclosure', description: 'Read me', patientId: 101, signatureRequired: true, uploadRequired: false, fileName: 'd.pdf' },
     ]);
     expect(text).not.toContain('secret-ish');
   });

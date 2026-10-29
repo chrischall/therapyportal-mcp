@@ -11,6 +11,8 @@ interface Seen {
   url: string;
   body: URLSearchParams;
   cookie: string;
+  headers: Record<string, string>;
+  rawBody: string;
 }
 
 /**
@@ -30,7 +32,9 @@ function fakePortal(opts: {
   const fetchImpl = (async (input: string | URL, init?: RequestInit) => {
     const url = String(input);
     const body = new URLSearchParams(typeof init?.body === 'string' ? init.body : '');
-    seen.push({ method: init?.method ?? 'GET', url, body, cookie: String((init?.headers as Record<string, string>)?.Cookie ?? '') });
+    const headers = (init?.headers ?? {}) as Record<string, string>;
+    const rawBody = typeof init?.body === 'string' ? init.body : '';
+    seen.push({ method: init?.method ?? 'GET', url, body, cookie: String(headers.Cookie ?? ''), headers, rawBody });
     const u = new URL(url);
     if (u.pathname.endsWith('/login/')) {
       return new Response(loginPage(), { status: opts.loginPageStatus ?? 200, headers: { 'set-cookie': 'ASP.NET_SessionId=s1; Path=/' } });
@@ -42,6 +46,14 @@ function fakePortal(opts: {
       return new Response(JSON.stringify(next), { status: 200, headers: { 'set-cookie': 'access-token=a1; Path=/' } });
     }
     if (/^\/p\/[^/]+\/$/.test(u.pathname)) return new Response(signedIn ? signedInPage() : loginPage());
+    if (u.pathname === '/app/common/files/FileSegmentReceiver.ashx') {
+      if (state.expireNext) {
+        state.expireNext = false;
+        signedIn = false;
+        return new Response('<title>Error | TherapyPortal</title>', { status: 401 });
+      }
+      return new Response('', { status: 200 });
+    }
     if (u.pathname.startsWith('/portal/practice/')) {
       if (state.expireNext) {
         state.expireNext = false;
@@ -270,5 +282,70 @@ describe('ServerTransport.download', () => {
     const untyped = fakePortal({ logins: [{ IsSuccessful: true }], file: () => new Response(null, { status: 200, headers: {} }) });
     // No content-type at all: judged as possibly-HTML (body prefix decoded), but a 200 non-HTML is a file.
     await expect(transport(untyped).t.download('f/')).resolves.toMatchObject({ kind: 'bytes' });
+  });
+});
+
+describe('ServerTransport writes', () => {
+  it('send posts the write once with the page tokens', async () => {
+    const portal = fakePortal({ logins: [{ IsSuccessful: true }], data: () => new Response('{"Id":1}') });
+    const { t } = transport(portal);
+    const res = await t.send('messages/createnewthread', { ThreadRequest: '{}' });
+    expect(res).toMatchObject({ status: 200, body: '{"Id":1}' });
+    const posts = portal.seen.filter((s) => s.url.includes('createnewthread'));
+    expect(posts).toHaveLength(1);
+    expect(posts[0]!.body.get('ThreadRequest')).toBe('{}');
+    expect(posts[0]!.body.get('tnrac')).toBe('tok-abc');
+  });
+
+  it('send never re-signs-in and replays on expiry: it returns the 401 and drops the session', async () => {
+    const portal = fakePortal({
+      logins: [{ IsSuccessful: true }, { IsSuccessful: true }],
+      data: () => new Response('{"Id":1}'),
+    });
+    const { t } = transport(portal);
+    await t.call('warm');
+    portal.state.expireNext = true;
+    const res = await t.send('messages/respondtothread', { ThreadId: '5' });
+    expect(res.status).toBe(401);
+    expect(portal.seen.filter((s) => s.url.includes('respondtothread'))).toHaveLength(1);
+    expect(logins(portal.seen)).toHaveLength(1);
+    expect(t.status()).toEqual({ mode: 'server', signedIn: false });
+    // The NEXT call signs in afresh.
+    await t.send('messages/respondtothread', { ThreadId: '5' });
+    expect(logins(portal.seen)).toHaveLength(2);
+  });
+
+  it('a read still re-signs-in and replays once on expiry (the read path)', async () => {
+    const portal = fakePortal({ logins: [{ IsSuccessful: true }, { IsSuccessful: true }], data: () => new Response('[1]') });
+    const { t } = transport(portal);
+    await t.call('warm');
+    portal.state.expireNext = true;
+    expect((await t.call('again')).body).toBe('[1]');
+    expect(logins(portal.seen)).toHaveLength(2);
+  });
+
+  it('uploadSegment posts the base64 text to the fixed receiver with cookies and the X-Upload headers', async () => {
+    const portal = fakePortal({ logins: [{ IsSuccessful: true }] });
+    const { t } = transport(portal);
+    const res = await t.uploadSegment({ 'X-Upload-Guid': 'g-1', 'X-Upload-Segment': '0' }, 'QUJD');
+    expect(res.status).toBe(200);
+    const seg = portal.seen.at(-1)!;
+    expect(seg.method).toBe('POST');
+    expect(seg.url).toBe('https://www.therapyportal.com/app/common/files/FileSegmentReceiver.ashx');
+    expect(seg.rawBody).toBe('QUJD');
+    expect(seg.headers['X-Upload-Guid']).toBe('g-1');
+    expect(seg.headers['Content-Type']).toMatch(/^text\/plain/);
+    expect(seg.cookie).toContain('access-token=a1');
+    expect(seg.rawBody).not.toContain('tnrac');
+  });
+
+  it('uploadSegment does not replay on expiry either', async () => {
+    const portal = fakePortal({ logins: [{ IsSuccessful: true }] });
+    const { t } = transport(portal);
+    await t.call('warm');
+    portal.state.expireNext = true;
+    expect((await t.uploadSegment({}, 'QQ==')).status).toBe(401);
+    expect(portal.seen.filter((s) => s.url.endsWith('.ashx'))).toHaveLength(1);
+    expect(t.status()).toEqual({ mode: 'server', signedIn: false });
   });
 });
