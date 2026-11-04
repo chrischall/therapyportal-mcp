@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/chrischall/therapyportal-mcp/compare/v0.2.0...v0.3.0) (2026-11-04)
+
+
+### Features
+
+* context-group hints, a brief view and a client subject enum on appointments and paperwork ([#6](https://github.com/chrischall/therapyportal-mcp/issues/6)) ([67e155d](https://github.com/chrischall/therapyportal-mcp/commit/67e155da7341a4cc1907f81d4085eb8170ca39e4))
+
 ## [0.2.0](https://github.com/chrischall/therapyportal-mcp/compare/v0.1.0...v0.2.0) (2026-10-29)
 
 
