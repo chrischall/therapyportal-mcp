@@ -10,6 +10,7 @@ import { registerHealthcheckTool } from '../src/tools/healthcheck.js';
 import { healthMeta, withToolMeta } from '../src/tools/hints.js';
 import {
   CLIENT_LIST_TIMEOUT_MS,
+  briefLine,
   buildClientDirectory,
   loadClientDirectory,
   type ClientDirectory,
@@ -212,10 +213,14 @@ describe('the client enum on the subject argument', () => {
 });
 
 describe('view: brief on the canonical reads', () => {
-  /** The brief lines: documents answer the untrusted envelope (`data`), appointments plain text. */
-  function briefLines(name: string, text: string): string[] {
-    if (name === 'therapyportal_list_documents') return (JSON.parse(text) as { data: string[] }).data;
-    return text === '' ? [] : text.split('\n');
+  /**
+   * The brief lines: both reads answer the untrusted envelope (`data`), since
+   * document titles, appointment types, clinician and location names are all
+   * the practice's text.
+   */
+  function briefLines(_name: string, text: string): string[] {
+    expect(text.startsWith('{"untrusted_content":true,"note":')).toBe(true);
+    return (JSON.parse(text) as { data: string[] }).data;
   }
 
   async function brief(name: string, args: Record<string, unknown>, directory: ClientDirectory | null = DIRECTORY) {
@@ -223,12 +228,13 @@ describe('view: brief on the canonical reads', () => {
     const h = await harness(directory, transport);
     const res = (await h.callTool(name, { view: 'brief', ...args })) as { content: { text: string }[]; isError?: boolean };
     await h.close();
-    return { text: res.content[0]!.text, isError: res.isError, transport };
+    const text = res.content[0]!.text;
+    return { text, lines: res.isError ? [] : briefLines(name, text), isError: res.isError, transport };
   }
 
   it('appointments: one line per appointment, soonest first, title — ISO date — status', async () => {
-    const { text } = await brief('therapyportal_list_appointments', {});
-    const lines = text.split('\n');
+    const { text, lines } = await brief('therapyportal_list_appointments', {});
+    expect((JSON.parse(text) as { note: string }).note).toContain('written by the practice');
     expect(lines).toEqual([
       'Appointment (telehealth) for Robin — 2026-11-01T10:00:00 — cancellation requested',
       'Therapy Session with Dr Example (Office) for Sammy — 2026-11-05T10:00:00 — reschedule requested',
@@ -242,15 +248,19 @@ describe('view: brief on the canonical reads', () => {
   });
 
   it('appointments: honours limit, and filters to one client by label (any case) or by patientId', async () => {
-    expect((await brief('therapyportal_list_appointments', { limit: 1 })).text.split('\n')).toHaveLength(1);
-    const byLabel = (await brief('therapyportal_list_appointments', { client: 'robin' })).text.split('\n');
+    // A page cut by limit says so with a note, never silently.
+    expect((await brief('therapyportal_list_appointments', { limit: 1 })).lines).toEqual([
+      'Appointment (telehealth) for Robin — 2026-11-01T10:00:00 — cancellation requested',
+      '-- 1 of 4 shown',
+    ]);
+    const byLabel = (await brief('therapyportal_list_appointments', { client: 'robin' })).lines;
     expect(byLabel).toEqual([
       'Appointment (telehealth) for Robin — 2026-11-01T10:00:00 — cancellation requested',
       'Appointment with Dr Example for Robin — 2026-11-08T09:00:00 — scheduled',
     ]);
-    expect((await brief('therapyportal_list_appointments', { client: '102' })).text).toBe(
+    expect((await brief('therapyportal_list_appointments', { client: '102' })).lines).toEqual([
       'Therapy Session with Dr Example (Office) for Sammy — 2026-11-05T10:00:00 — reschedule requested',
-    );
+    ]);
   });
 
   it('the subject filter also applies to the compact rung', async () => {
@@ -306,7 +316,7 @@ describe('view: brief on the canonical reads', () => {
     expect(transport.calls.at(-1)!.fields.Request).toBe('[1,4,5]');
   });
 
-  it('an empty answer is an empty brief', async () => {
+  it('an empty answer is the single note line -- none', async () => {
     const empty = new FakeTransport((call) =>
       call.path === 'appointments/appointmentinformation' ? okJson({ Appointments: [] }) : okJson({ PortalDocumentRequests: [] }),
     );
@@ -314,18 +324,20 @@ describe('view: brief on the canonical reads', () => {
       const h = await harness(DIRECTORY, empty);
       const res = (await h.callTool(name, { view: 'brief' })) as { content: { text: string }[] };
       await h.close();
-      expect(briefLines(name, res.content[0]!.text), name).toEqual([]);
+      expect(briefLines(name, res.content[0]!.text), name).toEqual(['-- none']);
     }
   });
 
-  it('an unexpected payload shape is an empty brief, not a crash', async () => {
+  it('an unexpected payload shape is an -- error note, not a crash or an empty answer', async () => {
     const odd = new FakeTransport(() => okJson({ Something: 1 }));
     for (const name of ['therapyportal_list_appointments', 'therapyportal_list_documents']) {
       const h = await harness(DIRECTORY, odd);
       const res = (await h.callTool(name, { view: 'brief' })) as { content: { text: string }[]; isError?: boolean };
       await h.close();
       expect(res.isError, name).toBeFalsy();
-      expect(briefLines(name, res.content[0]!.text), name).toEqual([]);
+      const lines = briefLines(name, res.content[0]!.text);
+      expect(lines, name).toHaveLength(1);
+      expect(lines[0], name).toMatch(/^-- error: .+/);
     }
   });
 
@@ -337,8 +349,8 @@ describe('view: brief on the canonical reads', () => {
   });
 
   it('with no start-time listing, a label is resolved by listing the clients at call time', async () => {
-    const { text, transport } = await brief('therapyportal_list_appointments', { client: 'Sammy' }, null);
-    expect(text).toBe('Therapy Session with Dr Example (Office) for Sammy — 2026-11-05T10:00:00 — reschedule requested');
+    const { lines, transport } = await brief('therapyportal_list_appointments', { client: 'Sammy' }, null);
+    expect(lines).toEqual(['Therapy Session with Dr Example (Office) for Sammy — 2026-11-05T10:00:00 — reschedule requested']);
     expect(transport.calls.map((c) => c.path)).toContain('document/getpatientsforportaluser');
     const none = new FakeTransport((call) =>
       call.path === 'document/getpatientsforportaluser' ? okJson([]) : responder(call),
@@ -353,7 +365,51 @@ describe('view: brief on the canonical reads', () => {
     const h2 = await harness(null, none);
     const byId = (await h2.callTool('therapyportal_list_appointments', { client: '101', view: 'brief' })) as { content: { text: string }[] };
     await h2.close();
-    expect(byId.content[0]!.text).toBe('Appointment (telehealth) for Robin — 2026-11-01T10:00:00 — cancellation requested');
+    expect(briefLines('therapyportal_list_appointments', byId.content[0]!.text)).toEqual([
+      'Appointment (telehealth) for Robin — 2026-11-01T10:00:00 — cancellation requested',
+    ]);
+  });
+
+  it('a practice title that starts with "-- " or "\\" is escaped with one backslash, so it never reads as a note', async () => {
+    const tricky = new FakeTransport((call) =>
+      call.path === 'appointments/appointmentinformation'
+        ? okJson({ Appointments: [{ StartDate: '2026-11-02T09:00:00', CalendarEntryTypeName: '-- none' }] })
+        : okJson({
+            PortalDocumentRequests: [
+              { PatientId: 101, RequestStatus: 1, PortalDocuments: [{ Title: '\\share\\form', PortalDocumentStatus: 1 }] },
+            ],
+          }),
+    );
+    const h = await harness(DIRECTORY, tricky);
+    const appts = (await h.callTool('therapyportal_list_appointments', { view: 'brief' })) as { content: { text: string }[] };
+    const docs = (await h.callTool('therapyportal_list_documents', { view: 'brief' })) as { content: { text: string }[] };
+    await h.close();
+    expect(briefLines('therapyportal_list_appointments', appts.content[0]!.text)).toEqual([
+      '\\-- none — 2026-11-02T09:00:00 — scheduled',
+    ]);
+    expect(briefLines('therapyportal_list_documents', docs.content[0]!.text)).toEqual([
+      '\\\\share\\form — no date — pending',
+    ]);
+  });
+});
+
+describe('briefLine', () => {
+  it('cuts the WHOLE line to 120 chars, title first, even when the date and status alone overflow', () => {
+    const long = 'x'.repeat(200);
+    const fits = briefLine(long, '2026-11-01', 'pending');
+    expect(fits.length).toBeLessThanOrEqual(120);
+    expect(fits).toMatch(/^x+… — 2026-11-01 — pending$/);
+    const overflow = briefLine(long, 'd'.repeat(80), 's'.repeat(80));
+    expect(overflow.length).toBeLessThanOrEqual(120);
+    expect(overflow.startsWith('x')).toBe(true);
+    const shortTitle = briefLine('Intake', 'd'.repeat(150), 'pending');
+    expect(shortTitle.length).toBeLessThanOrEqual(120);
+  });
+
+  it('escapes a title starting with "-- " or "\\" and leaves others alone', () => {
+    expect(briefLine('-- 3 of 9 shown', 'no date', 'pending')).toBe('\\-- 3 of 9 shown — no date — pending');
+    expect(briefLine('\\x', 'no date', 'pending')).toBe('\\\\x — no date — pending');
+    expect(briefLine('--dash', 'no date', 'pending')).toBe('--dash — no date — pending');
   });
 });
 
