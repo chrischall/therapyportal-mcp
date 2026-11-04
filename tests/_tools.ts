@@ -15,6 +15,7 @@ import { registerDownloadTools } from '../src/tools/downloads.js';
 import { registerMessageTools } from '../src/tools/messages.js';
 import { registerComposeTools } from '../src/tools/compose.js';
 import { registerUploadTools } from '../src/tools/uploads.js';
+import type { ClientDirectory } from '../src/tools/subjects.js';
 
 export interface FakeCall {
   path: string;
@@ -154,10 +155,15 @@ export const stubDownloadIO: DownloadIO = {
 };
 
 /** Every non-healthcheck registrar, for roster tests. */
-export function registerAll(server: never, client: TherapyPortalClient, io: DownloadIO = stubDownloadIO): void {
+export function registerAll(
+  server: never,
+  client: TherapyPortalClient,
+  io: DownloadIO = stubDownloadIO,
+  clients?: ClientDirectory | null,
+): void {
   registerClientTools(server, client);
-  registerAppointmentTools(server, client);
-  registerDocumentTools(server, client);
+  registerAppointmentTools(server, client, clients);
+  registerDocumentTools(server, client, clients);
   registerBillingTools(server, client);
   registerMessageTools(server, client);
   registerDownloadTools(server, client, io);

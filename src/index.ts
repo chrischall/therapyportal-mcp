@@ -26,6 +26,7 @@ import { registerHealthcheckTool } from './tools/healthcheck.js';
 import { registerMessageTools } from './tools/messages.js';
 import { registerComposeTools } from './tools/compose.js';
 import { registerUploadTools, uploadRoots } from './tools/uploads.js';
+import { loadClientDirectory } from './tools/subjects.js';
 import { DEFAULT_PORT, FetchproxyTransport } from './transport-fetchproxy.js';
 import { ServerTransport } from './transport-server.js';
 import { parsePracticeCode, type TherapyPortalTransport } from './transport.js';
@@ -64,6 +65,12 @@ if (mode === 'server') {
 
 const client = new TherapyPortalClient({ transport, scrubber, mode });
 const downloadIO = makeDownloadIO();
+// The `client` subject enum on the two canonical reads (context groups) is
+// built ONCE per process, here — not in the registrars, which runMcp runs once
+// per served instance. Bounded (CLIENT_LIST_TIMEOUT_MS, 5 s) and null on any
+// failure — no browser on the bridge, a rejected sign-in — so the property is
+// then published without an enum and a label is resolved at call time.
+const clients = loadClientDirectory(client);
 
 await runMcp({
   name: 'therapyportal-mcp',
@@ -78,8 +85,8 @@ await runMcp({
   deps: client,
   tools: [
     (server) => registerClientTools(server, client),
-    (server) => registerAppointmentTools(server, client),
-    (server) => registerDocumentTools(server, client),
+    async (server) => registerAppointmentTools(server, client, await clients),
+    async (server) => registerDocumentTools(server, client, await clients),
     (server) => registerBillingTools(server, client),
     (server) => registerMessageTools(server, client),
     (server) => registerDownloadTools(server, client, downloadIO),

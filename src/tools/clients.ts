@@ -4,6 +4,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import type { TherapyPortalClient } from '../client.js';
 import { READ, asRecordArray, displayName, tidy } from './_shared.js';
 import { ASSEMBLED_VIEWS, assembledViewArg } from '../view.js';
+import { healthMeta } from './hints.js';
 
 // The upstream record is the client's FULL demographic file — address, phones,
 // email, an SSN field, billing notes, free-text comments. It is never passed
@@ -19,6 +20,7 @@ export function registerClientTools(server: McpServer, client: TherapyPortalClie
         'child in therapy — with the PatientId the message and document tools take. Returns names ' +
         'and date of birth only, never contact details or identifiers.',
       annotations: READ,
+      _meta: healthMeta('lookup', { aliases: ['my kids in therapy', 'patients', 'clients'] }),
       inputSchema: z.object({ view: assembledViewArg() }),
     },
     async ({ view }) => {
