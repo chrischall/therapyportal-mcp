@@ -212,6 +212,12 @@ describe('the client enum on the subject argument', () => {
 });
 
 describe('view: brief on the canonical reads', () => {
+  /** The brief lines: documents answer the untrusted envelope (`data`), appointments plain text. */
+  function briefLines(name: string, text: string): string[] {
+    if (name === 'therapyportal_list_documents') return (JSON.parse(text) as { data: string[] }).data;
+    return text === '' ? [] : text.split('\n');
+  }
+
   async function brief(name: string, args: Record<string, unknown>, directory: ClientDirectory | null = DIRECTORY) {
     const transport = new FakeTransport(responder);
     const h = await harness(directory, transport);
@@ -257,9 +263,15 @@ describe('view: brief on the canonical reads', () => {
     expect(out.appointments.map((a) => a.apptId)).toEqual([2]);
   });
 
-  it('documents: one line per document still to do, title — sent date — status', async () => {
+  it('documents: one line per document still to do, title — sent date — status, inside the untrusted envelope', async () => {
     const { text, transport } = await brief('therapyportal_list_documents', {});
-    const lines = text.split('\n');
+    // Titles are the practice's text: the lines are the envelope's data array,
+    // marker first, as the compact/full/raw rungs of the same tool answer.
+    const out = JSON.parse(text) as { untrusted_content: boolean; note: string; data: string[] };
+    expect(text.startsWith('{"untrusted_content":true,"note":')).toBe(true);
+    expect(out.untrusted_content).toBe(true);
+    expect(out.note).toContain('Document titles and instructions are written by the practice.');
+    const lines = out.data;
     expect(lines[0]).toBe('Intake questionnaire for Robin — sent 2026-10-01 — pending');
     expect(lines[1]).toMatch(/^x+… — sent 2026-10-01 — in progress$/);
     expect(lines[2]).toBe('Paperwork request for Sammy — no date — in progress');
@@ -276,7 +288,7 @@ describe('view: brief on the canonical reads', () => {
 
   it('documents: an explicit status wins, and the client filter narrows the lines', async () => {
     const { text, transport } = await brief('therapyportal_list_documents', { status: 'all', client: 'Sammy' });
-    expect(text.split('\n')).toEqual([
+    expect((JSON.parse(text) as { data: string[] }).data).toEqual([
       'Paperwork request for Sammy — no date — in progress',
       'Odd — no date — unknown',
       'Document — no date — completed',
@@ -302,7 +314,7 @@ describe('view: brief on the canonical reads', () => {
       const h = await harness(DIRECTORY, empty);
       const res = (await h.callTool(name, { view: 'brief' })) as { content: { text: string }[] };
       await h.close();
-      expect(res.content[0]!.text, name).toBe('');
+      expect(briefLines(name, res.content[0]!.text), name).toEqual([]);
     }
   });
 
@@ -313,7 +325,7 @@ describe('view: brief on the canonical reads', () => {
       const res = (await h.callTool(name, { view: 'brief' })) as { content: { text: string }[]; isError?: boolean };
       await h.close();
       expect(res.isError, name).toBeFalsy();
-      expect(res.content[0]!.text, name).toBe('');
+      expect(briefLines(name, res.content[0]!.text), name).toEqual([]);
     }
   });
 
