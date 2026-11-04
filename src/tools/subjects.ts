@@ -106,10 +106,28 @@ export async function resolveClient(
   });
 }
 
-/** A brief line, shortened in its title to at most 120 characters. */
-export function briefLine(title: string, date: string, status: string): string {
+const BRIEF_MAX = 120;
+/** The shortest a title is cut to before the date and status give way too. */
+const TITLE_FLOOR = 24;
+
+const cut = (s: string, n: number): string => (s.length > n ? `${s.slice(0, Math.max(n - 1, 0))}…` : s);
+
+/**
+ * A brief line, `title — date — status`, cut to at most 120 characters as a
+ * WHOLE, title first: the title shortens until the line fits, and only once it
+ * is at its floor does the tail give way (the consolidated brief-view
+ * contract). A title starting with `-- ` or `\` is escaped with one leading
+ * `\`, so a practice-written title can never read as a note — the gateway
+ * strips one backslash from every item line after its note check.
+ */
+export function briefLine(rawTitle: string, date: string, status: string): string {
+  const title = rawTitle.startsWith('-- ') || rawTitle.startsWith('\\') ? `\\${rawTitle}` : rawTitle;
   const tail = ` — ${date} — ${status}`;
-  const room = 120 - tail.length;
-  const shown = title.length > room ? `${title.slice(0, Math.max(room - 1, 0))}…` : title;
-  return `${shown}${tail}`;
+  if (title.length + tail.length <= BRIEF_MAX) return `${title}${tail}`;
+  const shown = cut(title, Math.max(BRIEF_MAX - tail.length, Math.min(title.length, TITLE_FLOOR)));
+  return cut(`${shown}${tail}`, BRIEF_MAX);
 }
+
+/** The brief answer when the portal's payload is not a shape the brief view reads. */
+export const BRIEF_SHAPE_ERROR =
+  '-- error: TherapyPortal answered in a shape this brief view does not read; ask with view "raw"';
