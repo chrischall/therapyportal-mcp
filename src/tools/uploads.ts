@@ -50,6 +50,7 @@ import { untrustedViewResponse } from '../view.js';
 import { asRecord, asRecordArray, tidy } from './_shared.js';
 import { requireClient } from './_lookups.js';
 import { WRITE, compactResult, isUnknown, sendOnce, writeDescription } from './_writes.js';
+import { healthMeta, withToolMeta } from './hints.js';
 
 /** The MIME each allowed extension is SENT to the portal as. */
 export const UPLOAD_MIME_BY_EXT: Readonly<Record<string, string>> = {
@@ -264,134 +265,136 @@ export function registerUploadTools(server: McpServer, client: TherapyPortalClie
   const { allowedRoots } = opts;
   const maxBytes = opts.maxBytes ?? MAX_UPLOAD_BYTES;
 
-  registerWrite(
-    server,
-    defineWrite({
-      name: 'therapyportal_upload_document',
-      description: writeDescription(
-        'Upload a local file (PDF, JPG, JPEG, PNG, HEIC or DOCX, up to 25 MB) to TherapyPortal in ' +
-          'answer to a document that asks for one: a PENDING document request (portal_document_id from ' +
-          'therapyportal_list_documents) or an always-available form marked upload-required ' +
-          '(library_document_id from therapyportal_list_forms). The practice receives the file and ' +
-          'there is no delete or undo through this server. Refuses anything that needs a signature, ' +
-          'and does not fill in forms.',
-      ),
-      annotations: WRITE,
-      inputSchema: z.object({
-        portal_document_id: z
-          .number()
-          .int()
-          .positive()
-          .optional()
-          .describe('A pending request’s document, from therapyportal_list_documents. Give this OR library_document_id.'),
-        library_document_id: z
-          .number()
-          .int()
-          .positive()
-          .optional()
-          .describe('An always-available form’s libraryDocumentId, from therapyportal_list_forms.'),
-        patient_id: z
-          .number()
-          .int()
-          .positive()
-          .optional()
-          .describe('The client the file is for. Required when a form is offered to more than one client.'),
-        file_path: z
-          .string()
-          .min(1)
-          .describe(
-            'Local path to the file. Must be inside THERAPYPORTAL_UPLOAD_DIR (default ~/Downloads, ' +
-              '~/Documents or ~/Desktop; $MCP_DATA_DIR/uploads when hosted).',
-          ),
-      }),
-      async plan({ portal_document_id, library_document_id, patient_id, file_path }) {
-        if ((portal_document_id === undefined) === (library_document_id === undefined)) {
-          throw new McpToolError('Give exactly one of portal_document_id or library_document_id.', {
-            hint: 'portal_document_id for a pending document request; library_document_id for an always-available form.',
-          });
-        }
-        if (/\.doc$/i.test(file_path)) {
-          throw new McpToolError('Legacy .doc files cannot be checked before upload, so they are refused.', {
-            hint: 'Save it as PDF or .docx and upload that. Nothing was sent.',
-          });
-        }
-        const target =
-          portal_document_id !== undefined
-            ? await resolveRequestDocument(client, portal_document_id, patient_id)
-            : await resolveLibraryDocument(client, library_document_id as number, patient_id);
-        const who = await requireClient(client, target.patientId);
-
-        // Vet (and read) the file only once the target checks out.
-        const vetted = await vetUploadFile(file_path, { mimeByExt: VET_MIME_BY_EXT, maxBytes, allowedRoots, readAll: true });
-        const bytes = vetted.bytes as Uint8Array;
-        const file: FileFacts = {
-          name: portalFileName(vetted.requested),
-          mime: UPLOAD_MIME_BY_EXT[vetted.ext] as string,
-          size: bytes.length,
-        };
-        const sha256 = createHash('sha256').update(bytes).digest('hex');
-        const preview = submitRequest(target, file, null, null);
-        const targetId =
-          target.kind === 'request' ? `request:${target.portalDocumentId}` : `library:${target.libraryDocumentId}`;
-        return {
-          gate: {
-            action: 'therapyportal.upload_document',
-            summary: `Upload ${file.name} to the practice for ${who.name ?? `client ${target.patientId}`}`,
-            account: undefined,
-            target: targetId,
-            // The bytes are bound by their hash; the guid and DocumentDate are
-            // minted at send time and so are null here.
-            request: { method: 'POST', path: preview.path, body: { request: preview.request, contentSha256: sha256 } },
-            willSend: {
-              client: who.name ?? target.patientId,
-              document: targetId,
-              file: { name: file.name, type: file.mime, size: file.size },
-            },
-            preview: {
-              warning: 'The practice receives this file; this server cannot remove it.',
-              practiceText: untrustedEnvelope(
-                { documentTitle: target.title },
-                { note: `${PRACTICE_WROTE} ${UNTRUSTED_CONTENT_RULE}` },
-              ),
-            },
-          },
-          state: { target, file: { bytes, name: file.name, mime: file.mime } satisfies StagedFile, facts: file },
-        };
-      },
-      async execute({ target, file, facts }) {
-        const guid = randomUUID();
-        await client.stageUpload(file, guid);
-        const checked = await client.validateStagedUpload(validationRequest(target, guid));
-        const { path, request } = submitRequest(target, facts, guid, new Date().toISOString());
-        return sendOnce(
-          async () => {
-            const data = await client.submit(path, { request: JSON.stringify(request) }, SUBMIT_HINT);
-            const advice = client.judgeFormAdvice(data, 'upload', SUBMIT_HINT);
-            const notes = [...checked, ...advice]
-              .map((a) => (typeof a.Message === 'string' ? a.Message.trim() : ''))
-              .filter(Boolean);
-            return tidy({
-              uploaded: true,
-              documentTitle: target.title,
-              file: { name: facts.name, type: facts.mime, size: facts.size },
-              portalNotes: notes.length > 0 ? notes : undefined,
-              notice: 'The practice now has this file; this server cannot remove it.',
+  withToolMeta(server, healthMeta('send', { aliases: ['upload a form', 'send a document', 'send paperwork'] }), () =>
+    registerWrite(
+      server,
+      defineWrite({
+        name: 'therapyportal_upload_document',
+        description: writeDescription(
+          'Upload a local file (PDF, JPG, JPEG, PNG, HEIC or DOCX, up to 25 MB) to TherapyPortal in ' +
+            'answer to a document that asks for one: a PENDING document request (portal_document_id from ' +
+            'therapyportal_list_documents) or an always-available form marked upload-required ' +
+            '(library_document_id from therapyportal_list_forms). The practice receives the file and ' +
+            'there is no delete or undo through this server. Refuses anything that needs a signature, ' +
+            'and does not fill in forms.',
+        ),
+        annotations: WRITE,
+        inputSchema: z.object({
+          portal_document_id: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe('A pending request’s document, from therapyportal_list_documents. Give this OR library_document_id.'),
+          library_document_id: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe('An always-available form’s libraryDocumentId, from therapyportal_list_forms.'),
+          patient_id: z
+            .number()
+            .int()
+            .positive()
+            .optional()
+            .describe('The client the file is for. Required when a form is offered to more than one client.'),
+          file_path: z
+            .string()
+            .min(1)
+            .describe(
+              'Local path to the file. Must be inside THERAPYPORTAL_UPLOAD_DIR (default ~/Downloads, ' +
+                '~/Documents or ~/Desktop; $MCP_DATA_DIR/uploads when hosted).',
+            ),
+        }),
+        async plan({ portal_document_id, library_document_id, patient_id, file_path }) {
+          if ((portal_document_id === undefined) === (library_document_id === undefined)) {
+            throw new McpToolError('Give exactly one of portal_document_id or library_document_id.', {
+              hint: 'portal_document_id for a pending document request; library_document_id for an always-available form.',
             });
-          },
-          'upload',
-          target.kind === 'request' ? 'therapyportal_list_documents' : 'therapyportal_list_forms',
-        );
-      },
-      render: (result) =>
-        isUnknown(result)
-          ? compactResult(result)
-          : untrustedViewResponse({
-              view: 'full',
-              views: ['full'],
-              data: result,
-              whoWrote: PRACTICE_WROTE,
-              context: 'therapyportal_upload_document',
-            }),
-    }),
+          }
+          if (/\.doc$/i.test(file_path)) {
+            throw new McpToolError('Legacy .doc files cannot be checked before upload, so they are refused.', {
+              hint: 'Save it as PDF or .docx and upload that. Nothing was sent.',
+            });
+          }
+          const target =
+            portal_document_id !== undefined
+              ? await resolveRequestDocument(client, portal_document_id, patient_id)
+              : await resolveLibraryDocument(client, library_document_id as number, patient_id);
+          const who = await requireClient(client, target.patientId);
+
+          // Vet (and read) the file only once the target checks out.
+          const vetted = await vetUploadFile(file_path, { mimeByExt: VET_MIME_BY_EXT, maxBytes, allowedRoots, readAll: true });
+          const bytes = vetted.bytes as Uint8Array;
+          const file: FileFacts = {
+            name: portalFileName(vetted.requested),
+            mime: UPLOAD_MIME_BY_EXT[vetted.ext] as string,
+            size: bytes.length,
+          };
+          const sha256 = createHash('sha256').update(bytes).digest('hex');
+          const preview = submitRequest(target, file, null, null);
+          const targetId =
+            target.kind === 'request' ? `request:${target.portalDocumentId}` : `library:${target.libraryDocumentId}`;
+          return {
+            gate: {
+              action: 'therapyportal.upload_document',
+              summary: `Upload ${file.name} to the practice for ${who.name ?? `client ${target.patientId}`}`,
+              account: undefined,
+              target: targetId,
+              // The bytes are bound by their hash; the guid and DocumentDate are
+              // minted at send time and so are null here.
+              request: { method: 'POST', path: preview.path, body: { request: preview.request, contentSha256: sha256 } },
+              willSend: {
+                client: who.name ?? target.patientId,
+                document: targetId,
+                file: { name: file.name, type: file.mime, size: file.size },
+              },
+              preview: {
+                warning: 'The practice receives this file; this server cannot remove it.',
+                practiceText: untrustedEnvelope(
+                  { documentTitle: target.title },
+                  { note: `${PRACTICE_WROTE} ${UNTRUSTED_CONTENT_RULE}` },
+                ),
+              },
+            },
+            state: { target, file: { bytes, name: file.name, mime: file.mime } satisfies StagedFile, facts: file },
+          };
+        },
+        async execute({ target, file, facts }) {
+          const guid = randomUUID();
+          await client.stageUpload(file, guid);
+          const checked = await client.validateStagedUpload(validationRequest(target, guid));
+          const { path, request } = submitRequest(target, facts, guid, new Date().toISOString());
+          return sendOnce(
+            async () => {
+              const data = await client.submit(path, { request: JSON.stringify(request) }, SUBMIT_HINT);
+              const advice = client.judgeFormAdvice(data, 'upload', SUBMIT_HINT);
+              const notes = [...checked, ...advice]
+                .map((a) => (typeof a.Message === 'string' ? a.Message.trim() : ''))
+                .filter(Boolean);
+              return tidy({
+                uploaded: true,
+                documentTitle: target.title,
+                file: { name: facts.name, type: facts.mime, size: facts.size },
+                portalNotes: notes.length > 0 ? notes : undefined,
+                notice: 'The practice now has this file; this server cannot remove it.',
+              });
+            },
+            'upload',
+            target.kind === 'request' ? 'therapyportal_list_documents' : 'therapyportal_list_forms',
+          );
+        },
+        render: (result) =>
+          isUnknown(result)
+            ? compactResult(result)
+            : untrustedViewResponse({
+                view: 'full',
+                views: ['full'],
+                data: result,
+                whoWrote: PRACTICE_WROTE,
+                context: 'therapyportal_upload_document',
+              }),
+      }),
+    )
   );
 }

@@ -60,6 +60,23 @@ P=$(scripts/therapyportal patients | jq -r '.[] | select(.FirstName=="Sam") | .P
 scripts/therapyportal threads "$P"
 ```
 
+## In context groups
+
+The therapyportal MCP (not this fpx helper) joins the **health** group on an mcp-host
+gateway. Its canonical reads, each answering one line per item with `view: "brief"`:
+
+- **what's on** — `therapyportal_list_appointments`: upcoming sessions.
+- **what's due** — `therapyportal_list_documents`: paperwork still to fill in.
+
+Both take `client` as their subject: a client's name as listed at start (an enum of the
+linked clients, e.g. each child in therapy) or a raw patientId. There is no date range;
+the portal shows future appointments only. Nothing here is canonical for what's new
+(message threads are unprojected). A compound ask looks like "when is the next therapy
+session, and are there forms to fill in?" — the group fans out to both reads, once per
+client.
+On the browser bridge, when no signed-in portal tab is connected the group answers
+"needs your browser open" for this source instead of an empty list.
+
 ## Exit codes
 
 `0` ok · `1` usage · `2` bridge unavailable (extension not connected) · `3` bot wall ·

@@ -60,6 +60,19 @@ export type Projector = (data: unknown) => unknown;
  * first wrapped in the untrusted-data envelope — markers lead, so they precede
  * any third-party text in the serialised result.
  */
+/**
+ * Answer a `view: "brief"` read whose lines carry practice-authored text (a
+ * document title, a form name): the lines as the untrusted-data envelope's
+ * `data` array — `{ untrusted_content: true, note, data: string[] }` — so the
+ * marker precedes the text wherever the result is read, exactly as the other
+ * rungs of the same tool answer. A host composing a group answer (mcp-host's
+ * intent tools) unwraps the envelope and takes `data` as the lines.
+ */
+export function untrustedBriefResponse(lines: string[], whoWrote: string): CallToolResult {
+  const payload = untrustedEnvelope(lines, { note: `${whoWrote} ${UNTRUSTED_CONTENT_RULE}` });
+  return { content: [{ type: 'text', text: JSON.stringify(payload) }] };
+}
+
 export function untrustedViewResponse(opts: {
   view: string | undefined;
   views: readonly View[];

@@ -3,6 +3,7 @@ import type { McpServer } from '@modelcontextprotocol/server';
 import type { TherapyPortalClient } from '../client.js';
 import { READ, asRecordArray, firstText, tidy } from './_shared.js';
 import { viewArg, viewResponse } from '../view.js';
+import { healthMeta } from './hints.js';
 
 export function registerBillingTools(server: McpServer, client: TherapyPortalClient): void {
   server.registerTool(
@@ -12,6 +13,7 @@ export function registerBillingTools(server: McpServer, client: TherapyPortalCli
         'Show what is owed to the therapy practice in TherapyPortal: the balance due for each ' +
         'client, and whether autopay is on. Changes nothing — this server cannot make a payment.',
       annotations: READ,
+      _meta: healthMeta('whats-due', { aliases: ['therapy bill', 'balance', 'what do i owe', 'copay'] }),
       inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {
@@ -38,6 +40,7 @@ export function registerBillingTools(server: McpServer, client: TherapyPortalCli
         'card last four, and the dates of service it paid for. Returns the payment_id ' +
         'therapyportal_download_receipt takes — e.g. for an insurance or HSA/FSA claim.',
       annotations: READ,
+      _meta: healthMeta('lookup', { aliases: ['therapy receipts', 'payments', 'hsa', 'fsa', 'superbill'] }),
       inputSchema: z.object({ view: viewArg() }),
     },
     async ({ view }) => {

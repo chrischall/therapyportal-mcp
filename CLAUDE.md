@@ -36,4 +36,10 @@ password are set) and the fetchproxy browser bridge (`src/transport-fetchproxy.t
   fails closed. `.docx` is vetted as `application/zip` and sent with its Office MIME type.
 - **A result payload key named `note` collides with the untrusted envelope** (the payload gets
   nested under `data`). Use another key.
+- **The clients are listed once at start** (`loadClientDirectory`, bounded 5 s, null on any
+  failure) for the `client` subject enum on the two canonical reads. On the server path
+  that is a sign-in at boot; on the bridge with no browser it delays `tools/list` by the
+  bound. The boot test runs on the bridge so it never signs in to the live portal.
+- **Writes get `_meta` through `withToolMeta`** (`src/tools/hints.ts`): mcp-utils'
+  `registerWrite` builds the tool config itself and takes no `_meta`.
 - Logs go to stderr only (stdout is JSON-RPC).

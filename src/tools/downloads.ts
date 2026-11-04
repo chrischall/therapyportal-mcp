@@ -13,6 +13,7 @@ import type { TherapyPortalClient } from '../client.js';
 import type { DownloadIO } from '../download-io.js';
 import type { DownloadedFile } from '../transport.js';
 import { READ, asRecordArray, tidy } from './_shared.js';
+import { healthMeta } from './hints.js';
 
 const DEST = z
   .string()
@@ -67,6 +68,7 @@ export function registerDownloadTools(server: McpServer, client: TherapyPortalCl
         'Saves to disk and returns the path on a local install, or returns the bytes inline ' +
         '(base64) on a hosted runner.',
       annotations: READ,
+      _meta: healthMeta('other'),
       inputSchema: z.object({
         portal_document_id: z.number().int().positive().describe('portalDocumentId from therapyportal_list_documents.'),
         dest: DEST,
@@ -100,6 +102,7 @@ export function registerDownloadTools(server: McpServer, client: TherapyPortalCl
         'Saves to disk and returns the path on a local install, or returns the bytes inline ' +
         '(base64) on a hosted runner.',
       annotations: READ,
+      _meta: healthMeta('other', { aliases: ['receipt pdf'] }),
       inputSchema: z.object({
         payment_id: z.number().int().positive().describe('paymentId from therapyportal_list_receipts.'),
         dest: DEST,

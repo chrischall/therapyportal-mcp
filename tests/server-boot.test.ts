@@ -36,12 +36,17 @@ function listToolsViaStdio(
       cwd,
       env: {
         ...process.env,
-        // Credentials pin the bridge-less (server) path, which binds no port and
-        // touches no network until a tool is called — so tools/list is clean.
+        // The bridge path, with no credentials: the server lists the clients
+        // once at start (the context-group subject enum), and on the server path
+        // that would be a real sign-in to the live portal with fake credentials.
+        // On the bridge it relays to a browser that is not there and gives up
+        // within CLIENT_LIST_TIMEOUT_MS (5 s), touching no external network —
+        // the same environment the fleet confirm-gate lint boots in.
         THERAPYPORTAL_PRACTICE: 'boottest00000',
-        THERAPYPORTAL_EMAIL: 'boot-test@example.com',
-        THERAPYPORTAL_PASSWORD: 'boot-test-pass',
-        // Keep off the shared fleet concentrator port (37149) regardless of mode.
+        THERAPYPORTAL_TRANSPORT: 'fetchproxy',
+        THERAPYPORTAL_EMAIL: '',
+        THERAPYPORTAL_PASSWORD: '',
+        // Keep off the shared fleet concentrator port (37149).
         THERAPYPORTAL_WS_PORT: '39733',
         ...extraEnv,
       },

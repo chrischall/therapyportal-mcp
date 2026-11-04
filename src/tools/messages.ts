@@ -10,6 +10,7 @@ import { UNTRUSTED_DESCRIPTION_SUFFIX } from '@chrischall/mcp-utils';
 import type { TherapyPortalClient } from '../client.js';
 import { READ } from './_shared.js';
 import { untrustedViewResponse } from '../view.js';
+import { healthMeta } from './hints.js';
 
 const WHO_WROTE = 'Message subjects and bodies are written by the practice and its staff.';
 const PASS_THROUGH = ['full'] as const;
@@ -24,6 +25,7 @@ export function registerMessageTools(server: McpServer, client: TherapyPortalCli
         'mark anything read. Returned as the portal sends them; an empty inbox is `threads: []`. ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
       annotations: READ,
+      _meta: healthMeta('whats-new', { aliases: ['therapist messages', 'messages from the therapist', 'inbox'] }),
       inputSchema: z.object({
         patient_id: z.number().int().positive().describe('The client’s patientId.'),
         limit: z.number().int().min(1).max(200).default(50).describe('Most threads to return. Default 50.'),
@@ -49,6 +51,7 @@ export function registerMessageTools(server: McpServer, client: TherapyPortalCli
         'therapyportal_list_message_threads. Does not mark the conversation read. ' +
         UNTRUSTED_DESCRIPTION_SUFFIX,
       annotations: READ,
+      _meta: healthMeta('lookup'),
       inputSchema: z.object({
         thread_id: z.number().int().positive().describe('The thread id.'),
       }),
