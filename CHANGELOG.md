@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/chrischall/therapyportal-mcp/compare/v0.3.0...v0.3.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **brief:** align the brief view with the fleet contract ([#9](https://github.com/chrischall/therapyportal-mcp/issues/9)) ([5408e31](https://github.com/chrischall/therapyportal-mcp/commit/5408e31a54d2c69d1ad0d0a30a05e736ee2cfa98))
+
 ## [0.3.0](https://github.com/chrischall/therapyportal-mcp/compare/v0.2.0...v0.3.0) (2026-11-04)
 
 
