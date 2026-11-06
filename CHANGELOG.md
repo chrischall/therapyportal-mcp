@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/chrischall/therapyportal-mcp/compare/v0.3.1...v0.4.0) (2026-11-06)
+
+
+### Features
+
+* **uploads:** upload documents from hosted sessions via upload slots or inline base64 ([#12](https://github.com/chrischall/therapyportal-mcp/issues/12)) ([87b1c70](https://github.com/chrischall/therapyportal-mcp/commit/87b1c7065f1082980fad7e406617627e7ccb3965))
+
 ## [0.3.1](https://github.com/chrischall/therapyportal-mcp/compare/v0.3.0...v0.3.1) (2026-11-04)
 
 
