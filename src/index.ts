@@ -14,6 +14,7 @@
 // and makes no payment.
 
 import { loadDotenvSafely, readEnvVar, readPortEnv, requireEnvVar, runMcp } from '@chrischall/mcp-utils';
+import { blobStoreFromEnv } from '@chrischall/mcp-utils/export';
 import { TherapyPortalClient, type TransportMode } from './client.js';
 import { makeDownloadIO } from './download-io.js';
 import { SecretScrubber } from './secrets.js';
@@ -25,7 +26,7 @@ import { registerDownloadTools } from './tools/downloads.js';
 import { registerHealthcheckTool } from './tools/healthcheck.js';
 import { registerMessageTools } from './tools/messages.js';
 import { registerComposeTools } from './tools/compose.js';
-import { registerUploadTools, uploadRoots } from './tools/uploads.js';
+import { isHostedDeployment, registerUploadTools, uploadRoots } from './tools/uploads.js';
 import { loadClientDirectory } from './tools/subjects.js';
 import { DEFAULT_PORT, FetchproxyTransport } from './transport-fetchproxy.js';
 import { ServerTransport } from './transport-server.js';
@@ -91,7 +92,11 @@ await runMcp({
     (server) => registerMessageTools(server, client),
     (server) => registerDownloadTools(server, client, downloadIO),
     (server) => registerComposeTools(server, client),
-    (server) => registerUploadTools(server, client, { allowedRoots: uploadRoots() }),
+    (server) => registerUploadTools(server, client, {
+        allowedRoots: uploadRoots(),
+        hosted: isHostedDeployment(),
+        blobStore: () => blobStoreFromEnv(),
+      }),
     (server) => registerHealthcheckTool(server, client, hostLabel, { bridge, credentialsConfigured }),
   ],
 });

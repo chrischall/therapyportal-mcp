@@ -68,7 +68,7 @@
         },
         {
           "name": "THERAPYPORTAL_UPLOAD_DIR",
-          "description": "Folders an upload's file_path must be inside (a path-delimiter list; ~ expands). Default ~/Downloads, ~/Documents and ~/Desktop; $MCP_DATA_DIR/uploads when hosted.",
+          "description": "Folders an upload's file_path must be inside (a path-delimiter list; ~ expands). Default ~/Downloads, ~/Documents and ~/Desktop. Local installs only: a hosted server refuses file_path and takes uploads by upload slot or inline base64.",
           "isRequired": false,
           "format": "string"
         },

@@ -109,7 +109,11 @@
     },
     {
       "name": "therapyportal_upload_document",
-      "description": "Upload a local PDF, JPG, PNG, HEIC or DOCX (up to 25 MB) in answer to a pending document request or an upload-required always-available form. Confirm-gated (preview + confirmToken); the practice receives the file and it cannot be removed here. Refuses anything that needs a signature."
+      "description": "Upload a PDF, JPG, PNG, HEIC or DOCX (up to 25 MB) from a local path, inline base64, or an upload slot (hosted) in answer to a pending document request or an upload-required always-available form. Confirm-gated (preview + confirmToken); the practice receives the file and it cannot be removed here. Refuses anything that needs a signature."
+    },
+    {
+      "name": "therapyportal_upload_slot",
+      "description": "Hosted servers: a signed upload URL for one file (PDF, JPG, PNG, HEIC or DOCX, up to 25 MB), to PUT the file to before passing its blob_key to therapyportal_upload_document. Sends nothing to the practice."
     },
     {
       "name": "therapyportal_healthcheck",
@@ -170,7 +174,7 @@
     "therapyportal_upload_dir": {
       "type": "string",
       "title": "Upload directory (advanced)",
-      "description": "Folders a file may be uploaded from (a path-delimiter list; ~ expands). Default ~/Downloads, ~/Documents and ~/Desktop; $MCP_DATA_DIR/uploads when hosted. An upload's file_path must resolve inside one of these.",
+      "description": "Folders a file may be uploaded from (a path-delimiter list; ~ expands). Default ~/Downloads, ~/Documents and ~/Desktop. Local installs only: a hosted server refuses file_path and takes uploads by upload slot or inline base64. An upload's file_path must resolve inside one of these.",
       "required": false
     },
     "mcp_confirm_mode": {
