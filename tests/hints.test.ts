@@ -113,6 +113,7 @@ const EXPECTED_INTENT: Record<string, string> = {
   therapyportal_send_message: 'send',
   therapyportal_reply_message: 'send',
   therapyportal_upload_document: 'send',
+  therapyportal_upload_slot: 'other',
 };
 
 const BRIEF_LINE = /^.+ — (?:[a-z]+ )?(?:\d{4}-\d{2}-\d{2}(?:T[\d:.]+Z?)?|no date) — [a-z][a-z ]*$/;

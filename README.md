@@ -19,7 +19,7 @@ cannot be undone through this server:
 |---|---|---|
 | `therapyportal_send_message` | a new secure-message conversation, for one client, under a topic | `therapyportal_list_message_topics` |
 | `therapyportal_reply_message` | a reply in an existing conversation (leaves read state alone unless `mark_thread_read`) | `therapyportal_list_message_threads` |
-| `therapyportal_upload_document` | a local file in answer to a pending document request, or an upload-required always-available form | `therapyportal_list_documents`, `therapyportal_list_forms` |
+| `therapyportal_upload_document` | a file (local path, inline base64, or an upload slot when hosted) in answer to a pending document request, or an upload-required always-available form | `therapyportal_list_documents`, `therapyportal_list_forms` |
 
 All three are annotated `destructive` and confirm-gated (see below). The server
 signs no form, fills in no form and makes no payment. Anything that needs a
@@ -50,6 +50,7 @@ are ever passed through, on any `view`.
 | `therapyportal_send_message` | **write.** Start a new conversation (confirm-gated) |
 | `therapyportal_reply_message` | **write.** Reply in a conversation (confirm-gated) |
 | `therapyportal_upload_document` | **write.** Upload a PDF, JPG, JPEG, PNG, HEIC or DOCX (max 25 MB) for a document that asks for one (confirm-gated) |
+| `therapyportal_upload_slot` | hosted only: a signed URL to PUT one file to, whose `blobKey` `therapyportal_upload_document` then takes. Sends nothing to the practice |
 | `therapyportal_healthcheck` | connectivity, from whichever transport is live |
 
 Read tools take `view`. The default is `compact` (projected to the useful
@@ -82,13 +83,27 @@ signature.
   sends it (one HTML paragraph per line). A practice may refuse new messages
   after several unanswered ones; a refusal says so. Archived conversations
   cannot be replied to.
-- **Uploads.** The file must be inside `THERAPYPORTAL_UPLOAD_DIR` (default
-  `~/Downloads`, `~/Documents` or `~/Desktop`; `$MCP_DATA_DIR/uploads` when
-  hosted), a regular file (no symlinks), and its contents must match its
-  extension. Legacy `.doc` is refused (its format cannot be checked before
-  upload); save it as PDF or `.docx`. The file is staged in 100 KB segments,
-  validated by the portal, and only then submitted. Only the submit reaches the
-  practice.
+- **Uploads.** Give exactly one source:
+  - `file_path` (local installs): the file must be inside
+    `THERAPYPORTAL_UPLOAD_DIR` (default `~/Downloads`, `~/Documents` or
+    `~/Desktop`) and be a regular file (no symlinks). A hosted server refuses
+    `file_path` with a "this server is remote" error: it cannot see the
+    caller's files.
+  - `inline` (`{filename, content_base64, mime_type?}`): the bytes as base64,
+    strictly decoded (a truncated or mangled payload is refused, not sent).
+    Works anywhere, but every byte rides in one request; keep it small.
+  - `blob_key` (hosted): call `therapyportal_upload_slot` with the filename,
+    PUT the file to the returned `uploadUrl` (its `curl` does exactly that),
+    then pass the `blobKey`. The preview reads the uploaded copy and binds its
+    SHA-256; the confirmed call re-reads it (a changed file is refused) and
+    deletes it only once the portal accepted the upload. A failed or
+    unconfirmed upload keeps it; a failed delete is reported, not thrown.
+
+  Every source gets the same checks: an allowlisted extension, contents that
+  match it, at most 25 MB, and the SHA-256 in the preview. Legacy `.doc` is
+  refused (its format cannot be checked before upload); save it as PDF or
+  `.docx`. The file is staged in 100 KB segments, validated by the portal, and
+  only then submitted. Only the submit reaches the practice.
 - **Sent once.** A write is posted exactly once. It is never replayed after a
   re-sign-in, on either transport. A send the portal answers with a 5xx, or
   whose connection drops, is reported as `status: "unknown"` rather than as an
@@ -138,7 +153,7 @@ check locks after a few wrong dates, so the server tries it once.
 | `THERAPYPORTAL_WS_PORT` | fetchproxy concentrator port, default `37149` (shared by the whole fleet) |
 | `THERAPYPORTAL_OUTPUT_DIR` | where downloads are written (path-delimiter list; `~` expands). Default `~/Downloads` and `~/Documents`; a per-call `dest` must be inside one |
 | `THERAPYPORTAL_INLINE_DOWNLOADS` | `true` returns downloads inline (base64), for a hosted runner |
-| `THERAPYPORTAL_UPLOAD_DIR` | where an upload's `file_path` must be (path-delimiter list; `~` expands). Default `~/Downloads`, `~/Documents` and `~/Desktop`; `$MCP_DATA_DIR/uploads` when hosted |
+| `THERAPYPORTAL_UPLOAD_DIR` | where an upload's `file_path` must be (path-delimiter list; `~` expands). Default `~/Downloads`, `~/Documents` and `~/Desktop`. Ignored when hosted, where `file_path` is refused (use `therapyportal_upload_slot` + `blob_key`, or `inline`) |
 | `MCP_CONFIRM_MODE` | confirm-gate mode for every write. `ask-user` (default) = preview + `confirmToken` round-trip; `auto` lets a capable host confirm in one step; an unrecognised value fails closed (`refuse`) |
 | `MCP_CONFIRM_ELICITATION` | `on` (default) lets the host confirm a write interactively; `off` forces the `confirmToken` round-trip |
 | `FETCHPROXY_WS_HOST`, `FETCHPROXY_IDENTITY_DIR` | fetchproxy bind address and identity directory (advanced) |

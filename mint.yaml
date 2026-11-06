@@ -76,8 +76,9 @@ env:
     help: >-
       Folders therapyportal_upload_document may read a file from (a
       path-delimiter list; ~ expands). Default ~/Downloads, ~/Documents and
-      ~/Desktop locally, or $MCP_DATA_DIR/uploads when hosted. An upload's
-      file_path must resolve inside one of these.
+      ~/Desktop. An upload's file_path must resolve inside one of these.
+      Hosted, file_path is refused (the server cannot see the caller's files);
+      uploads come through therapyportal_upload_slot + blob_key, or inline.
   - name: MCP_CONFIRM_MODE
     required: false
     help: >-
@@ -135,12 +136,18 @@ state:
     pairing with the user's browser extension is lost and they must approve a
     new pair code each time. The default credential path holds its session
     cookie jar in memory; on a local install it writes downloaded files to
-    THERAPYPORTAL_OUTPUT_DIR, and nothing else. When hosted, uploads are read
-    from $MCP_DATA_DIR/uploads (the one disk the user and the runner share).
+    THERAPYPORTAL_OUTPUT_DIR, and nothing else. When hosted, uploads arrive
+    through the registration's blob store: therapyportal_upload_slot signs a
+    PUT URL, the caller uploads to it, and the object is deleted once the
+    practice has the file (or left to the store's retention if it never does).
 
 egress:
-  # Every request — sign-in, data calls, file downloads and uploads — goes to this one
-  # host; practices live under its /p/<code>/ path, so it does not vary by
+  # Every portal request — sign-in, data calls, file downloads and uploads — goes to this
+  # one host; practices live under its /p/<code>/ path, so it does not vary by
   # practice. Nothing redirects off it (redirects are not followed).
+  # Not listed: mcp-host's own blob store (MCP_BLOB_BASE_URL, the gateway
+  # serving this connector; its host differs per deployment). The server GETs
+  # and DELETEs files the caller uploaded through therapyportal_upload_slot.
+  # Signed requests only; no portal credential is ever sent there.
   allow:
     - www.therapyportal.com

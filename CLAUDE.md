@@ -30,6 +30,19 @@ password are set) and the fetchproxy browser bridge (`src/transport-fetchproxy.t
   (`transport.uploadSegment`, cookies only, no page fields), then
   `document/stageduploadvalidation`, then the submit. Only the submit uses `sendOnce`. The
   guid and `DocumentDate` are minted in `execute`; the gate binds the file's SHA-256.
+- **An upload has three sources, exactly one per call** (`file_path` | `inline` | `blob_key`),
+  all vetted alike: `vetUploadName` + `vetUploadBytes` mirror what `vetUploadFile` does on
+  disk (allowlist, no `.doc`, 25 MB, magic bytes). Hosted (`isHostedDeployment`: `MCP_DATA_DIR`
+  or `MCP_BLOB_BASE_URL`), `file_path` is refused with `hostedPathRefusal`, never an ENOENT.
+- **The upload slot is its own read-only tool** (`therapyportal_upload_slot`), not a mode of
+  the upload: `defineWrite` sends every call of a write through the confirm gate, and minting
+  a URL sends nothing. It mints with the extension's SENT MIME, so the blob's type always
+  matches what the portal is told.
+- **A `blob_key` is read twice and deleted once.** `plan` reads it with `store.get` (preview
+  and confirmed call alike; the gate binds its SHA-256, so a re-PUT object is
+  `DRAFT_CHANGED`); `execute` deletes it only after a confirmed submit. A throw keeps it, an
+  `unknown` submit keeps it (`blobKept`), and a failed delete is `blobDeleteError`. Not
+  `BlobStore.consume`: that reads and deletes in one call, and the read here belongs to `plan`.
 - **Nothing that needs a signature.** `PatientSignatureRequired` is refused; signature
   endpoints, form filling and payments are deliberately not implemented.
 - **`.doc` is refused**: mcp-utils' magic-byte check cannot verify OLE2, and `vetUploadFile`
