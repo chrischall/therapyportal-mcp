@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/chrischall/therapyportal-mcp/compare/v0.4.0...v0.4.1) (2026-11-07)
+
+
+### Bug Fixes
+
+* **deps:** upgrade @chrischall/mcp-utils to 3.7.2 so uploads carry only the file's bytes ([#14](https://github.com/chrischall/therapyportal-mcp/issues/14)) ([bc1b6a1](https://github.com/chrischall/therapyportal-mcp/commit/bc1b6a1bca16f652a23c5cd0e9f0264e11b3da31))
+
 ## [0.4.0](https://github.com/chrischall/therapyportal-mcp/compare/v0.3.1...v0.4.0) (2026-11-06)
 
 
