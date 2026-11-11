@@ -135,7 +135,11 @@ Field `ThreadRequest` = JSON:
 
 The UI requires a subject (pre-filled with the topic's `Description`), a topic, and a body
 of 1 to 5000 characters. The body HTML is the editor's: each line HTML-escaped in its own
-`<p>…</p>`, an empty line as `<p><br></p>`. Success answers the created thread as JSON;
+`<p>…</p>`, an empty line as `<p><br></p>`. The editor is the ProseMirror-based
+`psy-rich-text-editor` (psy-components `p-9c155bfa.entry.js`); for a portal user its tools are
+block, inline and list formatting plus a horizontal rule (no hyperlink), so its HTML uses only
+`p br strong em u h2 h3 h4 blockquote ul ol li hr`. A read message carries the same HTML in
+`MessageBody`, shown by `psy-rich-text-viewer` (MessageViewV2). Success answers the created thread as JSON;
 anything else is a failure. A practice may throttle: the UI's failure text is "You have
 sent too many messages to the practice since the practice responded".
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bodyHtml, escapeHtml, messageParts, projectTopics, registerComposeTools } from '../src/tools/compose.js';
+import { bodyHtml, markdownHtml, messageParts, projectTopics, registerComposeTools } from '../src/tools/compose.js';
 import { createTestHarness } from '@chrischall/mcp-utils/test';
 import { TherapyPortalClient } from '../src/client.js';
 import { FakeTransport, capture, gated, jsonOf, okJson, textOf, type FakeCall } from './_tools.js';
@@ -64,8 +64,22 @@ const sends = (calls: FakeCall[]) => calls.filter((c) => c.via === 'send');
 
 describe('message body helpers', () => {
   it('escapes HTML and builds one <p> per line, empty lines as <p><br></p>', () => {
-    expect(escapeHtml(`<b>"a" & b</b>`)).toBe('&lt;b&gt;&quot;a&quot; &amp; b&lt;/b&gt;');
-    expect(bodyHtml('Hi <there>\n\nBye')).toBe('<p>Hi &lt;there&gt;</p><p><br></p><p>Bye</p>');
+    expect(bodyHtml('Hi <there> & "you"\n\nBye')).toBe('<p>Hi &lt;there&gt; &amp; &quot;you&quot;</p><p><br></p><p>Bye</p>');
+  });
+  it('renders Markdown to the portal editor’s tags only, raw HTML escaped, link targets kept as text', () => {
+    expect(markdownHtml('# Plan\n## Steps\n**Hi** _you_ ~~x~~ `c` <b>raw</b> [form](https://x.org/f)\n\n- a\n  - b\n3. c\n\n> q')).toBe(
+      '<h2>Plan</h2><h2>Steps</h2><p><strong>Hi</strong> <em>you</em> x c &lt;b&gt;raw&lt;/b&gt; form (https://x.org/f)</p>' +
+        '<ul><li>a<ul><li>b</li></ul></li></ul><ol start="3"><li>c</li></ol><blockquote><p>q</p></blockquote>',
+    );
+    expect(markdownHtml('[javascript](javascript:alert(1))')).toBe('<p>[javascript](javascript:alert(1))</p>');
+  });
+  it('a Markdown body previews and counts its plain text', () => {
+    expect(messageParts('**Hi** there\n\n- one', 'markdown')).toEqual({
+      MessagePreview: 'Hi there\n\n- one',
+      MessageBody: '<p><strong>Hi</strong> there</p><ul><li>one</li></ul>',
+      MessageBodyCount: 15,
+    });
+    expect(messageParts('**Hi**', 'text')).toMatchObject({ MessageBody: '<p>**Hi**</p>', MessageBodyCount: 6 });
   });
   it('previews the first 500 chars and counts the plain text (CRLF normalised)', () => {
     const long = 'x'.repeat(600);
@@ -151,6 +165,17 @@ describe('therapyportal_send_message', () => {
       Subject: 'Clinical question',
     });
     expect(out).toMatchObject({ untrusted_content: true, sent: true, subject: 'Clinical question', thread: { ThreadId: 555 } });
+  });
+
+  it('format "markdown" sends formatted HTML and previews what is sent', async () => {
+    const { send, transport } = rig();
+    expect(JSON.stringify(await send.preview({ ...args, body: '**Urgent-ish**', format: 'markdown' }))).toContain('"format":"markdown"');
+    await send.confirmed({ ...args, body: '**Urgent-ish**\n- a', format: 'markdown' });
+    expect(JSON.parse(sends(transport.calls)[0]!.fields.ThreadRequest!)).toMatchObject({
+      MessagePreview: 'Urgent-ish\n\n- a',
+      MessageBody: '<p><strong>Urgent-ish</strong></p><ul><li>a</li></ul>',
+      MessageBodyCount: 15,
+    });
   });
 
   it('names a client with no name by id', async () => {
@@ -239,6 +264,16 @@ describe('therapyportal_reply_message', () => {
       MarkThreadRead: false,
     });
     expect(out).toMatchObject({ untrusted_content: true, sent: true, threadId: 44, message: { MessageId: 777 } });
+  });
+
+  it('format "markdown" replies with formatted HTML', async () => {
+    const { reply, transport } = rig();
+    await reply.confirmed({ ...args, body: 'Thanks _so_ much', format: 'markdown' });
+    expect(JSON.parse(sends(transport.calls)[0]!.fields.MessageRequest!)).toMatchObject({
+      MessagePreview: 'Thanks so much',
+      MessageBody: '<p>Thanks <em>so</em> much</p>',
+      MessageBodyCount: 14,
+    });
   });
 
   it('passes mark_thread_read through when asked, and previews it', async () => {

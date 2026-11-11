@@ -43,7 +43,7 @@ are ever passed through, on any `view`.
 | `therapyportal_list_balances` | the balance due per client, and whether autopay is on |
 | `therapyportal_list_receipts` | payments, with the dates of service each covered, and `paymentId` |
 | `therapyportal_list_message_threads` | one client's secure-message conversations (does not mark read) |
-| `therapyportal_get_thread_messages` | the messages in one conversation (does not mark read) |
+| `therapyportal_get_thread_messages` | the messages in one conversation (does not mark read); `format: "markdown"` or `"text"` reads each body without its HTML |
 | `therapyportal_download_document` | a completed form (rendered to PDF) or a file the practice uploaded |
 | `therapyportal_download_receipt` | a payment receipt PDF |
 | `therapyportal_list_message_topics` | the topics a client can message (`topicId`, and whether each reaches clinical, billing or administrative staff), whether messaging is on, and whether the client has an assigned clinician |
@@ -79,8 +79,11 @@ turned on, the topic exists for that client, and, for an upload, that the
 document or form exists, is not completed, asks for an upload and needs no
 signature.
 
-- **Messages.** Plain text, 1 to 5000 characters, sent as the portal's editor
-  sends it (one HTML paragraph per line). A practice may refuse new messages
+- **Messages.** 1 to 5000 characters. Plain text by default, sent as the
+  portal's editor sends it (one HTML paragraph per line). With
+  `format: "markdown"`, bold, italic, lists, headings and quotes are sent
+  formatted, limited to what the portal's editor offers a client; a link is
+  sent as its text and address, since clients get no link tool. A practice may refuse new messages
   after several unanswered ones; a refusal says so. Archived conversations
   cannot be replied to.
 - **Uploads.** Give exactly one source:
