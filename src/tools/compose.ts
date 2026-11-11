@@ -19,6 +19,7 @@ import {
   registerWrite,
   untrustedEnvelope,
 } from '@chrischall/mcp-utils';
+import { escapeHtml, htmlToText, renderMarkdown, sanitiseHtml } from '@chrischall/mcp-utils/rich';
 import type { CallToolResult, McpServer } from '@modelcontextprotocol/server';
 import type { TherapyPortalClient } from '../client.js';
 import { ASSEMBLED_VIEWS, assembledViewArg, untrustedViewResponse } from '../view.js';
@@ -43,11 +44,6 @@ const NOT_URGENT =
   '988 or 911.';
 const CHECK_SENT = 'therapyportal_list_message_threads for this client';
 
-/** Escape text for an HTML text node. */
-export function escapeHtml(text: string): string {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-}
-
 /**
  * The message body as the portal's rich-text editor emits it: one `<p>` per
  * line, HTML-escaped, an empty line as `<p><br></p>`.
@@ -59,14 +55,37 @@ export function bodyHtml(text: string): string {
     .join('');
 }
 
-/** The three body fields both sends carry, from plain text (CRLF normalised to LF). */
-export function messageParts(text: string): {
+/**
+ * The tags the portal's editor (psy-rich-text-editor) produces for a client:
+ * its block, inline and list tools plus the horizontal rule. Clients get no
+ * link tool, so a link is sent as its text and target.
+ */
+const EDITOR_TAGS = ['p', 'br', 'strong', 'em', 'u', 'h2', 'h3', 'h4', 'blockquote', 'ul', 'ol', 'li', 'hr'];
+
+/** Markdown as HTML the portal's editor could have written. */
+export function markdownHtml(markdown: string): string {
+  return sanitiseHtml(renderMarkdown(markdown, { headings: true, quotes: true }), {
+    tags: EDITOR_TAGS,
+    // The editor's top heading is <h2>.
+    element: (el, output, inner) => (output === 'html' && el.tag === 'h1' ? `<h2>${inner}</h2>` : undefined),
+  });
+}
+
+export type WriteFormat = 'text' | 'markdown';
+
+/** The three body fields both sends carry (CRLF normalised to LF). */
+export function messageParts(
+  text: string,
+  format: WriteFormat = 'text',
+): {
   MessagePreview: string;
   MessageBody: string;
   MessageBodyCount: number;
 } {
-  const plain = text.replace(/\r\n?/g, '\n');
-  return { MessagePreview: plain.slice(0, PREVIEW_CHARS), MessageBody: bodyHtml(plain), MessageBodyCount: plain.length };
+  const src = text.replace(/\r\n?/g, '\n');
+  const html = format === 'markdown' ? markdownHtml(src) : bodyHtml(src);
+  const plain = format === 'markdown' ? htmlToText(html, { paragraphs: true }) : src;
+  return { MessagePreview: plain.slice(0, PREVIEW_CHARS), MessageBody: html, MessageBodyCount: plain.length };
 }
 
 /** A message topic, projected. */
@@ -96,7 +115,15 @@ const BODY = z
   .min(1)
   .max(MAX_BODY_CHARS)
   .refine((s) => s.trim() !== '', 'The message is blank.')
-  .describe(`Message text, plain text (1-${MAX_BODY_CHARS} characters). Line breaks become paragraphs.`);
+  .describe(`Message text (1-${MAX_BODY_CHARS} characters). Line breaks become paragraphs.`);
+
+const FORMAT = z
+  .enum(['text', 'markdown'])
+  .optional()
+  .describe(
+    'How body is written: "text" (default, sent as typed) or "markdown" (**bold**, _italic_, lists, # headings, ' +
+      '> quotes — sent formatted, as the portal’s editor would; a link is sent as its text and address).',
+  );
 
 /** Render a send's result: practice-returned JSON goes out in the untrusted envelope. */
 function renderSent(result: unknown, context: string): CallToolResult {
@@ -173,8 +200,9 @@ export function registerComposeTools(server: McpServer, client: TherapyPortalCli
           topic_id: z.number().int().min(0).describe('Topic id, from therapyportal_list_message_topics.'),
           subject: NonEmptyString.max(255).optional().describe('Subject. Default: the topic’s name, as the portal pre-fills it.'),
           body: BODY,
+          format: FORMAT,
         }),
-        async plan({ patient_id, topic_id, subject, body }) {
+        async plan({ patient_id, topic_id, subject, body, format }) {
           const who = await requireClient(client, patient_id);
           await requireMessaging(client);
           const topics = projectTopics(asRecordArray(await client.messageTopics(patient_id)));
@@ -198,7 +226,7 @@ export function registerComposeTools(server: McpServer, client: TherapyPortalCli
               : undefined;
           const threadRequest = {
             InternalAddressees: [],
-            ...messageParts(body),
+            ...messageParts(body, format),
             AddresseeType: 0,
             TopicId: topic.topicId,
             Audience: topic.audienceType,
@@ -212,7 +240,7 @@ export function registerComposeTools(server: McpServer, client: TherapyPortalCli
               account: undefined,
               target: `${patient_id}/${topic.topicId}`,
               request: { method: 'POST', path: 'messages/createnewthread', body: { ThreadRequest: threadRequest } },
-              willSend: { client: who.name ?? patient_id, to: `${topic.audience} staff`, subject: finalSubject, body },
+              willSend: tidy({ client: who.name ?? patient_id, to: `${topic.audience} staff`, subject: finalSubject, body, format }),
               preview: tidy({
                 note: NOT_URGENT,
                 warning: clinicianWarning,
@@ -257,17 +285,18 @@ export function registerComposeTools(server: McpServer, client: TherapyPortalCli
           patient_id: z.number().int().positive().describe('The client’s patientId, from therapyportal_list_clients.'),
           thread_id: z.number().int().positive().describe('The conversation’s thread id, from therapyportal_list_message_threads.'),
           body: BODY,
+          format: FORMAT,
           mark_thread_read: z
             .boolean()
             .default(false)
             .describe('Also mark the conversation read. Default false; set true only when the user asks.'),
         }),
-        async plan({ patient_id, thread_id, body, mark_thread_read }) {
+        async plan({ patient_id, thread_id, body, format, mark_thread_read }) {
           const who = await requireClient(client, patient_id);
           await requireMessaging(client);
           // Strictly true: anything else (the default) leaves the read state alone.
           const markRead = mark_thread_read === true;
-          const messageRequest = { ...messageParts(body), MessageType: 0, MarkThreadRead: markRead };
+          const messageRequest = { ...messageParts(body, format), MessageType: 0, MarkThreadRead: markRead };
           const fields = {
             MessageRequest: JSON.stringify(messageRequest),
             ThreadId: String(thread_id),
@@ -284,7 +313,7 @@ export function registerComposeTools(server: McpServer, client: TherapyPortalCli
                 path: 'messages/respondtothread',
                 body: { MessageRequest: messageRequest, ThreadId: thread_id, PatientId: patient_id },
               },
-              willSend: { client: who.name ?? patient_id, threadId: thread_id, body, markThreadRead: markRead },
+              willSend: tidy({ client: who.name ?? patient_id, threadId: thread_id, body, format, markThreadRead: markRead }),
               preview: { note: NOT_URGENT },
             },
             state: { fields, threadId: thread_id },

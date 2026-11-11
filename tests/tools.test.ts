@@ -191,6 +191,27 @@ describe('message tools', () => {
     expect(jsonOf(await full.handlers.get('therapyportal_list_message_threads')!({ patient_id: 1 }))).toMatchObject({ Threads: [{ Subject: 'Hi' }] });
     expect(jsonOf(await full.handlers.get('therapyportal_get_thread_messages')!({ thread_id: 3 }))).toMatchObject({ Threads: [{ Subject: 'Hi' }] });
   });
+
+  it('get_thread_messages reads MessageBody as Markdown or text when asked, HTML by default', async () => {
+    const body = '<p>Hi <strong>Robin</strong>,</p><p><br></p><ul><li><p>bring the <a href="https://x.org/f" target="_blank">form</a></p></li></ul><p style="display:none">hidden</p>';
+    const msgs = [{ Id: 1, MessageBody: body, Type: 0 }, { Id: 2, MessageBody: null }, { Id: 3 }];
+    const { handlers } = capture(registerMessageTools, () => okJson(msgs));
+    const get = handlers.get('therapyportal_get_thread_messages')!;
+    expect(jsonOf(await get({ thread_id: 3 }))).toMatchObject({ data: msgs });
+    expect(jsonOf(await get({ thread_id: 3, format: 'html' }))).toMatchObject({ data: msgs });
+    expect(jsonOf(await get({ thread_id: 3, format: 'markdown' }))).toMatchObject({
+      untrusted_content: true,
+      data: [{ Id: 1, MessageBody: 'Hi **Robin**,\n\n- bring the [form](https://x.org/f)', Type: 0 }, { Id: 2, MessageBody: null }, { Id: 3 }],
+    });
+    expect((jsonOf(await get({ thread_id: 3, format: 'text' })) as { data: { MessageBody: unknown }[] }).data[0]!.MessageBody).toBe(
+      'Hi Robin,\n\n- bring the form (https://x.org/f)',
+    );
+    // An unexpected wrapper object: bodies inside it are still read.
+    const wrapped = capture(registerMessageTools, () => okJson({ Messages: [{ MessageBody: '<p>a &amp; b</p>' }] }));
+    expect(jsonOf(await wrapped.handlers.get('therapyportal_get_thread_messages')!({ thread_id: 3, format: 'text' }))).toMatchObject({
+      Messages: [{ MessageBody: 'a & b' }],
+    });
+  });
 });
 
 describe('download tools', () => {
