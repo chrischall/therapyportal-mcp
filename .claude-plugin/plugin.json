@@ -1,7 +1,7 @@
 {
   "name": "therapyportal-mcp",
   "displayName": "TherapyPortal",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Use a TherapyNotes client portal (TherapyPortal) — upcoming appointments, paperwork, practice forms, balances, receipts and secure messages, document and receipt downloads, plus confirm-gated secure messages and document uploads.",
   "author": {
     "name": "Chris Hall",
