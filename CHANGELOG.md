@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/chrischall/therapyportal-mcp/compare/v0.4.1...v0.5.0) (2026-11-11)
+
+
+### Features
+
+* **messages:** write and read message bodies as Markdown ([#16](https://github.com/chrischall/therapyportal-mcp/issues/16)) ([1c2fbca](https://github.com/chrischall/therapyportal-mcp/commit/1c2fbca78c6d48eec0e074fc9318f0cd2d767b16))
+
 ## [0.4.1](https://github.com/chrischall/therapyportal-mcp/compare/v0.4.0...v0.4.1) (2026-11-07)
 
 
