@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.1](https://github.com/chrischall/therapyportal-mcp/compare/v0.5.0...v0.5.1) (2026-11-12)
+
+
+### Bug Fixes
+
+* **deps:** Bump the production-dependencies group with 2 updates ([#19](https://github.com/chrischall/therapyportal-mcp/issues/19)) ([9575acf](https://github.com/chrischall/therapyportal-mcp/commit/9575acf0dd4bd667fbe4755f34f106b714e28470))
+
 ## [0.5.0](https://github.com/chrischall/therapyportal-mcp/compare/v0.4.1...v0.5.0) (2026-11-11)
 
 
